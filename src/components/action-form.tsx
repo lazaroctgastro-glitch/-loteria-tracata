@@ -27,13 +27,18 @@ export function ActionForm({
 }: ActionFormProps) {
   const [state, formAction] = useActionState(action, IDLE)
   const formRef = React.useRef<HTMLFormElement>(null)
+  const handledRef = React.useRef<ActionState | null>(null)
+  const onSuccessRef = React.useRef(onSuccess)
+  onSuccessRef.current = onSuccess
 
+  // Cada resultado se procesa una sola vez, aunque el componente se vuelva a
+  // renderizar mientras el usuario sigue escribiendo.
   React.useEffect(() => {
-    if (state.ok) {
-      if (resetOnSuccess) formRef.current?.reset()
-      onSuccess?.()
-    }
-  }, [state, resetOnSuccess, onSuccess])
+    if (!state.ok || handledRef.current === state) return
+    handledRef.current = state
+    if (resetOnSuccess) formRef.current?.reset()
+    onSuccessRef.current?.()
+  }, [state, resetOnSuccess])
 
   return (
     <form ref={formRef} action={formAction} className={cn('space-y-4', className)}>
