@@ -64,6 +64,12 @@ Detalles importantes:
 
 ## Puesta en marcha
 
+> **¿Es la primera vez que publicas una aplicación?** Sigue la guía
+> **[docs/PUESTA-EN-MARCHA.md](docs/PUESTA-EN-MARCHA.md)**: está explicada paso a
+> paso y se hace entera desde el navegador, sin instalar nada.
+>
+> Lo que viene a continuación es la versión corta, para quien ya se maneja.
+
 ### 1. Crear el proyecto en Supabase
 
 1. Entra en [supabase.com](https://supabase.com) y crea un proyecto nuevo.
@@ -79,8 +85,10 @@ supabase link --project-ref TU_PROJECT_REF
 supabase db push          # aplica las migraciones de supabase/migrations
 ```
 
-O, si prefieres hacerlo a mano, pega en el **SQL Editor** de Supabase el contenido de los
-archivos de `supabase/migrations/` **en orden**.
+O, sin instalar nada: pega en el **SQL Editor** de Supabase el archivo
+**`supabase/instalacion-completa.sql`**, que contiene todas las migraciones en orden
+y se puede ejecutar varias veces sin efectos secundarios. Se regenera con
+`node scripts/build-install-sql.mjs`.
 
 Para probar en local con datos de ejemplo:
 
