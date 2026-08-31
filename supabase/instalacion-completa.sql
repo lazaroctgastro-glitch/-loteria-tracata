@@ -1635,3 +1635,8 @@ end $$;
 comment on function dev_seed_demo_data(uuid) is
   'Genera el escenario de prueba completo (compra, entregas, ventas, retirada '
   'completa, retirada parcial, devolución, recuento y segunda compra).';
+
+-- ===========================================================================
+-- Avisar a Supabase de que hay funciones nuevas disponibles.
+-- ===========================================================================
+notify pgrst, 'reload schema';
