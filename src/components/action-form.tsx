@@ -7,7 +7,7 @@ import { CheckCircle2, Loader2, TriangleAlert } from 'lucide-react'
 import { Button, type ButtonProps } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { IDLE, type ActionState } from '@/lib/actions'
+import { IDLE, type ActionState } from '@/lib/action-state'
 
 type ActionFormProps = {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>

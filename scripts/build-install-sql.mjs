@@ -34,7 +34,17 @@ export function buildInstallSql() {
     .map((file) => `-- ${'='.repeat(75)}\n-- Bloque: ${file}\n-- ${'='.repeat(75)}\n\n${readFileSync(join(MIGRATIONS, file), 'utf8').trim()}\n`)
     .join('\n')
 
-  return `${header}${body}`
+  // Supabase (PostgREST) guarda en memoria las funciones disponibles. Este
+  // aviso le hace releerlas al instante, para que las funciones nuevas se
+  // puedan usar sin esperar ni reiniciar el proyecto.
+  const footer = `
+-- ${'='.repeat(75)}
+-- Avisar a Supabase de que hay funciones nuevas disponibles.
+-- ${'='.repeat(75)}
+notify pgrst, 'reload schema';
+`
+
+  return `${header}${body}${footer}`
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -5,10 +5,9 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireUser } from '@/lib/auth'
 import { parseMoneyToCents } from '@/lib/money'
-
-export type ActionState = { ok: boolean; message: string; fieldErrors?: Record<string, string> }
-
-export const IDLE: ActionState = { ok: false, message: '' }
+// El tipo y el estado inicial viven en `action-state.ts`: este archivo lleva
+// 'use server' y solo puede exportar funciones async.
+import type { ActionState } from '@/lib/action-state'
 
 function fail(message: string, fieldErrors?: Record<string, string>): ActionState {
   return { ok: false, message, fieldErrors }
