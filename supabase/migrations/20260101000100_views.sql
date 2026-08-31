@@ -74,7 +74,10 @@ select
   coalesce(sum(m.d_commission_cents), 0)::bigint                                        as commission_cents,
   coalesce(sum(m.d_pending_cents), 0)::bigint                                           as pending_cents,
   coalesce(sum(m.d_central_cash_cents) filter (where m.type = 'withdrawal'), 0)::bigint as withdrawn_cents,
-  max(m.occurred_on) filter (where m.type = 'withdrawal')                               as last_withdrawal_on,
+  max(m.occurred_on) filter (
+    where m.type = 'withdrawal'
+      and m.reverses_movement_id is null
+      and m.reversed_by_movement_id is null)                                            as last_withdrawal_on,
   max(m.occurred_on) filter (where m.type = 'sale')                                     as last_sale_on,
   max(m.occurred_on) filter (where m.type = 'count')                                    as last_count_on
 from establishments e
@@ -207,9 +210,15 @@ left join profiles p on p.id = m.created_by;
 create or replace view v_sales_since_last_withdrawal
 with (security_invoker = true) as
 with last_withdrawal as (
+  -- Solo cuentan las retiradas EFECTIVAS: se ignoran las anulaciones y las
+  -- retiradas anuladas, para que al anular una retirada vuelvan a contarse
+  -- las ventas que quedaron otra vez pendientes de cobrar.
   select campaign_id, establishment_id, max(created_at) as at
   from movements
-  where type = 'withdrawal' and establishment_id is not null
+  where type = 'withdrawal'
+    and establishment_id is not null
+    and reverses_movement_id is null
+    and reversed_by_movement_id is null
   group by campaign_id, establishment_id
 )
 select

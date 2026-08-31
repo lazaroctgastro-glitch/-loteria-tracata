@@ -374,6 +374,54 @@ describe('Libro mayor de lotería', () => {
     expect(Number(after.revenue_cents)).toBe(6900)
   })
 
+  it('al anular una retirada, el dinero vuelve a contar como pendiente de recoger', async () => {
+    const bar = await one<{ id: string }>(
+      db,
+      `insert into establishments (name) values ('Casa Paco') returning id`,
+    )
+    await db.query(`select api_deliver($1, $2, 10, current_date, null)`, [bar.id, ctx.numberId])
+    await db.query(`select api_sale($1, $2, 6, current_date, null)`, [bar.id, ctx.numberId])
+
+    const withdrawal = await one<{ id: string }>(
+      db,
+      `select api_withdraw('${bar.id}', '${ctx.campaignId}', 13800) as id`,
+    )
+    expect(
+      await scalar(
+        db,
+        `select pending_cents from v_establishment_summary where establishment_id = '${bar.id}'`,
+      ),
+    ).toBe(0)
+
+    // Se apuntó por error: al anularla el dinero vuelve a estar pendiente...
+    await db.query(`select api_void_movement($1, 'No llegué a recoger el dinero')`, [withdrawal.id])
+    expect(
+      await scalar(
+        db,
+        `select pending_cents from v_establishment_summary where establishment_id = '${bar.id}'`,
+      ),
+    ).toBe(13800)
+
+    // ...y las ventas vuelven a contar como pendientes de cobrar, porque la
+    // retirada anulada ya no cuenta como "última retirada".
+    const since = await one<Record<string, string>>(
+      db,
+      `select sold_qty, revenue_cents from v_sales_since_last_withdrawal
+       where establishment_id = '${bar.id}'`,
+    )
+    expect(Number(since.sold_qty)).toBe(6)
+    expect(Number(since.revenue_cents)).toBe(13800)
+
+    // Y no queda constancia de una retirada efectiva.
+    const summary = await one<Record<string, string>>(
+      db,
+      `select withdrawn_cents, last_withdrawal_on from v_establishment_summary
+       where establishment_id = '${bar.id}'`,
+    )
+    expect(Number(summary.withdrawn_cents)).toBe(0)
+    expect(summary.last_withdrawal_on).toBeNull()
+  })
+
   it('el fondo fiesta descuenta los gastos registrados', async () => {
     const before = await one<Record<string, string>>(
       db,
