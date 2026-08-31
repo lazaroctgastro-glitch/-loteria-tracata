@@ -196,6 +196,21 @@ describe('Libro mayor de lotería', () => {
     expect(await scalar(db, `select purchased_qty from v_campaign_summary`)).toBe(175)
   })
 
+  it('no deja mezclar campañas en un recuento', async () => {
+    const other = await one<{ id: string }>(
+      db,
+      `insert into campaigns (name, year) values ('Navidad 2027', 2027) returning id`,
+    )
+    const message = await expectError(() =>
+      db.query(
+        `select api_register_count($1, $2, jsonb_build_array(
+           jsonb_build_object('lottery_number_id', $3::uuid, 'counted_qty', 1)))`,
+        [ctx.establishmentId, other.id, ctx.numberId],
+      ),
+    )
+    expect(message).toContain('no pertenece a la campaña')
+  })
+
   it('exige que el número de lotería tenga 5 cifras', async () => {
     const message = await expectError(() =>
       db.query(`select api_create_purchase($1, '[{"number":"695","quantity":5}]'::jsonb)`, [

@@ -481,6 +481,14 @@ begin
     if v_counted is null or v_counted < 0 then
       raise exception 'Las unidades contadas no pueden ser negativas.' using errcode = 'check_violation';
     end if;
+    -- El recuento y las ventas que genere deben quedar en la misma campaña.
+    if not exists (
+      select 1 from lottery_numbers
+      where id = v_number_id and campaign_id = p_campaign_id
+    ) then
+      raise exception 'Ese número de lotería no pertenece a la campaña del recuento.'
+        using errcode = 'check_violation';
+    end if;
 
     perform app_lock_establishment(p_establishment_id, v_number_id);
     v_expected := app_establishment_stock(p_establishment_id, v_number_id);
