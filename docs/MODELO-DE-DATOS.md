@@ -79,6 +79,12 @@ Un movimiento de anulación tiene **el mismo `type`** que el original y todos lo
 deltas negados, de forma que cualquier informe filtrado por tipo queda
 automáticamente neto de anulaciones.
 
+> Cuidado con lo que **no** es una suma. Preguntas del tipo «¿cuándo fue la última
+> retirada?» sí distinguen entre movimientos: ahí hay que excluir explícitamente
+> las anulaciones (`reverses_movement_id is null`) y los movimientos anulados
+> (`reversed_by_movement_id is null`), porque si no una anulación pasaría por ser
+> la última retirada.
+
 ## 3. Separación capital / comisión
 
 Físicamente el dinero está mezclado, pero contablemente cada décimo vendido a 23 €
@@ -183,4 +189,5 @@ generar stock negativo.
 | Se retira menos dinero del esperado               | La diferencia sigue viva en la caja pendiente del bar                |
 | Se retira más dinero del esperado                 | La caja pendiente queda en negativo y se marca en rojo (a favor)     |
 | Movimiento registrado por error                   | `Anular movimiento` → movimiento inverso, nunca borrado              |
+| Retirada apuntada por error                       | Al anularla el dinero vuelve a contar como pendiente de recoger      |
 | Décimo perdido / roto                             | `adjustment` con baja explícita y motivo obligatorio                 |
