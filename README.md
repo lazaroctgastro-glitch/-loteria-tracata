@@ -171,7 +171,9 @@ comprueban, entre otras cosas, que:
 - una compra nueva no borra el histórico de las anteriores;
 - el inventario cuadra siempre;
 - **dos usuarios operando a la vez no pueden dejar el stock en negativo**;
-- un responsable no ve la caja central ni las cifras de los demás establecimientos.
+- un responsable no ve la caja central ni las cifras de los demás establecimientos;
+- conectándose con el mismo rol de base de datos que usa la aplicación en producción,
+  nadie puede hacerse pasar por administrador ni escribir en el histórico.
 
 Las pruebas de concurrencia y del seed necesitan un PostgreSQL accesible. Indícalo con
 `TEST_DATABASE_URL` (por defecto `postgresql://postgres@localhost:55432/postgres`); si no hay
