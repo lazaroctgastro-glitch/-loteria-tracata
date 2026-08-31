@@ -13,6 +13,7 @@ import type {
   MovementType,
   NumberSummary,
   Profile,
+  SalesSinceWithdrawal,
   StockCentralRow,
   StockEstablishmentRow,
 } from '@/lib/database.types'
@@ -153,6 +154,18 @@ export const getIntegrityCheck = cache(async (campaignId: string): Promise<Integ
     .maybeSingle()
   return data ?? null
 })
+
+/** Ventas de cada establecimiento posteriores a su última retirada de efectivo. */
+export const getSalesSinceLastWithdrawal = cache(
+  async (campaignId: string): Promise<SalesSinceWithdrawal[]> => {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('v_sales_since_last_withdrawal')
+      .select('*')
+      .eq('campaign_id', campaignId)
+    return data ?? []
+  },
+)
 
 export type MovementFilters = {
   campaignId?: string

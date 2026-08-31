@@ -181,6 +181,14 @@ export type FundByEstablishment = {
   commission_cents: number
 }
 
+export type SalesSinceWithdrawal = {
+  campaign_id: string
+  establishment_id: string
+  last_withdrawal_at: string | null
+  sold_qty: number
+  revenue_cents: number
+}
+
 export type IntegrityCheck = {
   campaign_id: string
   campaign_name: string
@@ -239,6 +247,7 @@ export type Database = {
       v_establishment_dashboard: View<EstablishmentDashboard>
       v_campaign_summary: View<CampaignSummary>
       v_fund_by_establishment: View<FundByEstablishment>
+      v_sales_since_last_withdrawal: View<SalesSinceWithdrawal>
       v_integrity_check: View<IntegrityCheck>
       v_movements_detailed: View<MovementDetailed>
     }

@@ -200,3 +200,27 @@ from movements m
 left join establishments e on e.id = m.establishment_id
 left join lottery_numbers ln on ln.id = m.lottery_number_id
 left join profiles p on p.id = m.created_by;
+
+-- --------------- VENTAS DESDE LA ÚLTIMA RETIRADA DE EFECTIVO ---------------
+-- Alimenta la pantalla "Retirar dinero": cuántos décimos se han vendido y
+-- cuánto dinero debería haber aparecido en la caja desde la última visita.
+create or replace view v_sales_since_last_withdrawal
+with (security_invoker = true) as
+with last_withdrawal as (
+  select campaign_id, establishment_id, max(created_at) as at
+  from movements
+  where type = 'withdrawal' and establishment_id is not null
+  group by campaign_id, establishment_id
+)
+select
+  m.campaign_id,
+  m.establishment_id,
+  lw.at                                              as last_withdrawal_at,
+  coalesce(sum(m.d_sold_qty), 0)::integer            as sold_qty,
+  coalesce(sum(m.d_revenue_cents), 0)::bigint        as revenue_cents
+from movements m
+left join last_withdrawal lw
+  on lw.campaign_id = m.campaign_id and lw.establishment_id = m.establishment_id
+where m.establishment_id is not null
+  and (lw.at is null or m.created_at > lw.at)
+group by m.campaign_id, m.establishment_id, lw.at;

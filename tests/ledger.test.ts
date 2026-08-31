@@ -337,6 +337,43 @@ describe('Libro mayor de lotería', () => {
     expect(message).toContain('motivo')
   })
 
+  it('cuenta solo las ventas posteriores a la última retirada', async () => {
+    // Escenario propio: un bar nuevo con sus décimos.
+    const bar = await one<{ id: string }>(
+      db,
+      `insert into establishments (name) values ('El Rincón') returning id`,
+    )
+    await db.query(`select api_deliver($1, $2, 10, current_date, null)`, [bar.id, ctx.numberId])
+    await db.query(`select api_sale($1, $2, 4, current_date, null)`, [bar.id, ctx.numberId])
+
+    const before = await one<Record<string, string>>(
+      db,
+      `select sold_qty, revenue_cents from v_sales_since_last_withdrawal
+       where establishment_id = '${bar.id}'`,
+    )
+    expect(Number(before.sold_qty)).toBe(4)
+    expect(Number(before.revenue_cents)).toBe(9200)
+
+    // Se recoge el dinero: a partir de aquí el contador empieza de cero.
+    await db.query(`select api_withdraw($1, $2, 9200, current_date, null)`, [bar.id, ctx.campaignId])
+    expect(
+      await scalar(
+        db,
+        `select count(*) from v_sales_since_last_withdrawal where establishment_id = '${bar.id}'`,
+      ),
+    ).toBe(0)
+
+    // Y las ventas nuevas vuelven a contar.
+    await db.query(`select api_sale($1, $2, 3, current_date, null)`, [bar.id, ctx.numberId])
+    const after = await one<Record<string, string>>(
+      db,
+      `select sold_qty, revenue_cents from v_sales_since_last_withdrawal
+       where establishment_id = '${bar.id}'`,
+    )
+    expect(Number(after.sold_qty)).toBe(3)
+    expect(Number(after.revenue_cents)).toBe(6900)
+  })
+
   it('el fondo fiesta descuenta los gastos registrados', async () => {
     const before = await one<Record<string, string>>(
       db,
