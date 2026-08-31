@@ -7,10 +7,13 @@ import {
   getActiveCampaign,
   getCampaignSummary,
   getCentralStock,
+  getEstablishments,
   getEstablishmentStock,
+  getLotteryNumbers,
   getNumberSummary,
 } from '@/lib/data'
 import { formatNumber } from '@/lib/money'
+import { AdjustStockDialog } from './adjust-stock'
 
 export const metadata = { title: 'Inventario' }
 
@@ -19,12 +22,15 @@ export default async function InventoryPage() {
   const campaign = await getActiveCampaign()
   if (!campaign) return <NoCampaign isAdmin={user.isAdmin} />
 
-  const [summary, central, byEstablishment, numbers] = await Promise.all([
-    getCampaignSummary(campaign.id),
-    getCentralStock(campaign.id),
-    getEstablishmentStock(campaign.id),
-    getNumberSummary(campaign.id),
-  ])
+  const [summary, central, byEstablishment, numbers, lotteryNumbers, establishments] =
+    await Promise.all([
+      getCampaignSummary(campaign.id),
+      getCentralStock(campaign.id),
+      getEstablishmentStock(campaign.id),
+      getNumberSummary(campaign.id),
+      getLotteryNumbers(campaign.id),
+      getEstablishments(),
+    ])
 
   const grouped = byEstablishment.reduce<Record<string, typeof byEstablishment>>((acc, row) => {
     ;(acc[row.establishment_name] ??= []).push(row)
@@ -33,7 +39,11 @@ export default async function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Inventario" description="Dónde está cada décimo en este momento." />
+      <PageHeader title="Inventario" description="Dónde está cada décimo en este momento.">
+        {user.isAdmin && lotteryNumbers.length > 0 ? (
+          <AdjustStockDialog numbers={lotteryNumbers} establishments={establishments} />
+        ) : null}
+      </PageHeader>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {user.isAdmin ? (

@@ -299,6 +299,44 @@ describe('Libro mayor de lotería', () => {
     expect(message).toContain('No se puede anular')
   })
 
+  // ---------------------------------------------------------------- ajustes
+  it('una corrección de inventario da de baja los décimos y exige un motivo', async () => {
+    const before = await scalar(db, `select qty from v_stock_central where number = '06004'`)
+    await db.query(`select api_adjust_stock($1, null, -2, 'Dos décimos rotos')`, [
+      (await one<{ id: string }>(db, `select id from lottery_numbers where number = '06004'`)).id,
+    ])
+    expect(await scalar(db, `select qty from v_stock_central where number = '06004'`)).toBe(before - 2)
+    // La baja no cuenta como venta ni genera dinero.
+    const adjustment = await one<Record<string, string>>(
+      db,
+      `select d_sold_qty, d_revenue_cents, d_written_off_qty, concept from movements
+       where type = 'adjustment' order by created_at desc limit 1`,
+    )
+    expect(Number(adjustment.d_sold_qty)).toBe(0)
+    expect(Number(adjustment.d_revenue_cents)).toBe(0)
+    expect(Number(adjustment.d_written_off_qty)).toBe(2)
+    expect(adjustment.concept).toBe('Dos décimos rotos')
+    // Y el inventario sigue cuadrando, ahora contando las bajas.
+    expect((await one<Record<string, unknown>>(db, `select * from v_integrity_check`)).balanced).toBe(true)
+  })
+
+  it('no permite una corrección que deje el stock en negativo', async () => {
+    const numberId = (await one<{ id: string }>(db, `select id from lottery_numbers where number = '06004'`)).id
+    const available = await scalar(db, `select qty from v_stock_central where number = '06004'`)
+    const message = await expectError(() =>
+      db.query(`select api_adjust_stock($1, null, $2, 'Prueba')`, [numberId, -(available + 1)]),
+    )
+    expect(message).toContain('negativo')
+  })
+
+  it('exige un motivo en toda corrección de inventario', async () => {
+    const numberId = (await one<{ id: string }>(db, `select id from lottery_numbers where number = '06004'`)).id
+    const message = await expectError(() =>
+      db.query(`select api_adjust_stock($1, null, -1, '  ')`, [numberId]),
+    )
+    expect(message).toContain('motivo')
+  })
+
   it('el fondo fiesta descuenta los gastos registrados', async () => {
     const before = await one<Record<string, string>>(
       db,
