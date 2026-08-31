@@ -127,6 +127,9 @@ create table if not exists movements (
   quantity                 integer not null default 0,
   unit_price_cents         integer,
   amount_cents             integer not null default 0,
+  -- En una retirada, lo que la aplicación esperaba encontrar en la caja. Se
+  -- guarda para que cada liquidación quede auditable (esperado vs retirado).
+  expected_amount_cents    integer,
   concept                  text,
   notes                    text,
   supplier                 text,

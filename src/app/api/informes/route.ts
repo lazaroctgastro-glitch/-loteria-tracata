@@ -11,15 +11,28 @@ import {
 import { MOVEMENT_LABELS, type MovementType } from '@/lib/database.types'
 import { centsToCsv, csvResponse, toCsv } from '@/lib/csv'
 
+/** Informes que contienen cifras globales del proyecto. */
+const ADMIN_ONLY_REPORTS = ['caja', 'fondo', 'numeros']
+
 /** Exportación de informes a CSV. Respeta los permisos del usuario (RLS). */
 export async function GET(request: NextRequest) {
-  await requireUser()
+  const user = await requireUser()
   const campaign = await getActiveCampaign()
   if (!campaign) return NextResponse.json({ error: 'No hay campaña' }, { status: 404 })
 
   const params = request.nextUrl.searchParams
   const report = params.get('informe') ?? 'movimientos'
   const stamp = new Date().toISOString().slice(0, 10)
+
+  // Estos informes presentan totales del proyecto. Para un responsable la RLS
+  // solo dejaría pasar sus propias cifras, que quedarían rotuladas como si
+  // fuesen el total: mejor no ofrecerlos que darlos mal.
+  if (ADMIN_ONLY_REPORTS.includes(report) && !user.isAdmin) {
+    return NextResponse.json(
+      { error: 'Este informe solo está disponible para el administrador.' },
+      { status: 403 },
+    )
+  }
 
   switch (report) {
     case 'establecimientos': {

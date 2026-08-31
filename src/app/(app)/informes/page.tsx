@@ -86,7 +86,7 @@ export default async function ReportsPage({
       <Card className="print:hidden">
         <CardContent className="space-y-4 pt-5">
           <ReportFilters establishments={establishments} numbers={allNumbers} params={params} />
-          <ExportButtons params={params} />
+          <ExportButtons params={params} isAdmin={user.isAdmin} />
         </CardContent>
       </Card>
 

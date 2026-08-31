@@ -38,9 +38,14 @@ create table if not exists auth.identities (
 );
 
 -- Igual que en Supabase: el usuario sale del JWT de la petición.
+-- El `nullif(..., '')` es imprescindible y está también en la definición real de
+-- Supabase: al terminar una transacción, PostgreSQL deja las variables fijadas
+-- con SET LOCAL en cadena vacía, no en NULL, y ''::jsonb daría error.
 create or replace function auth.uid() returns uuid
 language sql stable as $$
-  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid;
+  select nullif(
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', ''
+  )::uuid;
 $$;
 
 grant usage on schema auth to authenticated, anon, service_role;

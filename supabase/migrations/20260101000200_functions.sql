@@ -104,6 +104,7 @@ create or replace function app_new_movement(
   p_quantity              integer      default 0,
   p_unit_price_cents      integer      default null,
   p_amount_cents          integer      default 0,
+  p_expected_amount_cents integer      default null,
   p_concept               text         default null,
   p_notes                 text         default null,
   p_supplier              text         default null,
@@ -127,19 +128,29 @@ declare
   v_user uuid := app_current_user_id();
   v_email text;
 begin
+  -- Un movimiento nunca puede apuntar a un número de otra campaña: si no, los
+  -- recuentos de stock por campaña y por número dejarían de coincidir.
+  if p_lottery_number_id is not null and not exists (
+    select 1 from lottery_numbers
+    where id = p_lottery_number_id and campaign_id = p_campaign_id
+  ) then
+    raise exception 'El número de lotería no pertenece a esa campaña.'
+      using errcode = 'check_violation';
+  end if;
+
   select email into v_email from profiles where id = v_user;
 
   insert into movements (
     campaign_id, type, occurred_on, created_by, created_by_email,
     establishment_id, lottery_number_id, quantity, unit_price_cents, amount_cents,
-    concept, notes, supplier, group_id, reverses_movement_id,
+    expected_amount_cents, concept, notes, supplier, group_id, reverses_movement_id,
     d_purchased_qty, d_central_qty, d_establishment_qty, d_sold_qty, d_written_off_qty,
     d_pending_cents, d_central_cash_cents, d_revenue_cents, d_capital_cents,
     d_commission_cents, d_fund_expense_cents
   ) values (
     p_campaign_id, p_type, coalesce(p_occurred_on, current_date), v_user, v_email,
     p_establishment_id, p_lottery_number_id, p_quantity, p_unit_price_cents, p_amount_cents,
-    p_concept, p_notes, p_supplier, p_group_id, p_reverses,
+    p_expected_amount_cents, p_concept, p_notes, p_supplier, p_group_id, p_reverses,
     p_d_purchased_qty, p_d_central_qty, p_d_establishment_qty, p_d_sold_qty, p_d_written_off_qty,
     p_d_pending_cents, p_d_central_cash_cents, p_d_revenue_cents, p_d_capital_cents,
     p_d_commission_cents, p_d_fund_expense_cents
@@ -543,19 +554,25 @@ begin
     raise exception 'El importe retirado debe ser mayor que 0 €.' using errcode = 'check_violation';
   end if;
 
+  -- El bloqueo garantiza que el importe esperado que se guarda corresponde
+  -- exactamente al estado de la caja en el momento de registrar la retirada.
   perform app_lock_cash(p_establishment_id);
   v_expected := app_pending_cents(p_establishment_id, p_campaign_id);
 
+  -- Se permite a propósito retirar más de lo esperado (la caja quedaría a favor
+  -- del establecimiento y se ve en rojo). Lo que nunca se hace es ajustar la
+  -- diferencia en silencio: se guarda lo esperado y lo realmente retirado.
   return app_new_movement(
-    p_campaign_id          => p_campaign_id,
-    p_type                 => 'withdrawal',
-    p_occurred_on          => p_occurred_on,
-    p_establishment_id     => p_establishment_id,
-    p_amount_cents         => p_amount_cents,
-    p_concept              => 'Retirada de efectivo',
-    p_notes                => p_notes,
-    p_d_pending_cents      => -p_amount_cents,
-    p_d_central_cash_cents => p_amount_cents
+    p_campaign_id           => p_campaign_id,
+    p_type                  => 'withdrawal',
+    p_occurred_on           => p_occurred_on,
+    p_establishment_id      => p_establishment_id,
+    p_amount_cents          => p_amount_cents,
+    p_expected_amount_cents => v_expected::integer,
+    p_concept               => 'Retirada de efectivo',
+    p_notes                 => p_notes,
+    p_d_pending_cents       => -p_amount_cents,
+    p_d_central_cash_cents  => p_amount_cents
   );
 end $$;
 
@@ -696,7 +713,10 @@ begin
     where (v_group is not null and m.group_id = v_group or v_group is null and m.id = p_movement_id)
       and m.reverses_movement_id is null
       and m.reversed_by_movement_id is null
-    order by m.created_at desc, m.id desc
+    -- Todos los movimientos de un grupo se crean en la misma transacción, así
+    -- que comparten `created_at`. Se ordena por la clave de los bloqueos para
+    -- que dos anulaciones simultáneas no puedan interbloquearse.
+    order by m.lottery_number_id nulls first, m.establishment_id nulls first, m.id
   loop
     if v_src.lottery_number_id is not null then
       perform app_lock_central(v_src.lottery_number_id);
@@ -714,6 +734,7 @@ begin
       p_quantity             => v_src.quantity,
       p_unit_price_cents     => v_src.unit_price_cents,
       p_amount_cents         => -v_src.amount_cents,
+      p_expected_amount_cents => v_src.expected_amount_cents,
       p_concept              => 'ANULACIÓN: ' || coalesce(v_src.concept, v_src.type::text),
       p_notes                => p_reason,
       p_group_id             => v_src.group_id,
@@ -756,6 +777,107 @@ begin
   end loop;
 
   return v_count;
+end $$;
+
+-- =============================================================================
+-- 11. GUARDAR UNA CAMPAÑA
+--     En una sola transacción, para que nunca pueda quedar el sistema sin
+--     ninguna campaña activa si la escritura falla a mitad.
+-- =============================================================================
+create or replace function api_save_campaign(
+  p_id                   uuid,
+  p_name                 text,
+  p_year                 integer,
+  p_purchase_price_cents integer,
+  p_sale_price_cents     integer,
+  p_is_default           boolean default true
+) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  v_default boolean := coalesce(p_is_default, false) or p_id is null;
+  v_id uuid;
+begin
+  perform app_assert_admin();
+
+  if p_name is null or length(btrim(p_name)) = 0 then
+    raise exception 'Indica el nombre de la campaña.' using errcode = 'check_violation';
+  end if;
+  if p_year is null or p_year < 2000 or p_year > 2100 then
+    raise exception 'El año de la campaña no es válido.' using errcode = 'check_violation';
+  end if;
+  if p_purchase_price_cents is null or p_purchase_price_cents <= 0
+     or p_sale_price_cents is null or p_sale_price_cents <= 0 then
+    raise exception 'Los precios deben ser mayores que 0 €.' using errcode = 'check_violation';
+  end if;
+  if p_sale_price_cents < p_purchase_price_cents then
+    raise exception 'El precio de venta no puede ser menor que el de compra.'
+      using errcode = 'check_violation';
+  end if;
+
+  if v_default then
+    -- Solo puede haber una campaña en uso.
+    update campaigns set is_default = false where is_default and id is distinct from p_id;
+  end if;
+
+  if p_id is null then
+    insert into campaigns (name, year, purchase_price_cents, sale_price_cents, is_default)
+    values (btrim(p_name), p_year, p_purchase_price_cents, p_sale_price_cents, v_default)
+    returning id into v_id;
+  else
+    update campaigns set
+      name                 = btrim(p_name),
+      year                 = p_year,
+      purchase_price_cents = p_purchase_price_cents,
+      sale_price_cents     = p_sale_price_cents,
+      is_default           = v_default
+    where id = p_id
+    returning id into v_id;
+
+    if v_id is null then
+      raise exception 'La campaña indicada no existe.' using errcode = 'no_data_found';
+    end if;
+  end if;
+
+  return v_id;
+end $$;
+
+-- =============================================================================
+-- 12. PERMISOS DE UN USUARIO
+--     Rol, acceso y establecimientos asignados, todo en la misma transacción:
+--     un fallo a mitad no puede dejar a un responsable sin ningún bar asignado.
+-- =============================================================================
+create or replace function api_set_user_access(
+  p_user_id           uuid,
+  p_role              app_role,
+  p_is_active         boolean,
+  p_establishment_ids uuid[] default '{}'
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform app_assert_admin();
+
+  if not exists (select 1 from profiles where id = p_user_id) then
+    raise exception 'El usuario indicado no existe.' using errcode = 'no_data_found';
+  end if;
+
+  -- Nadie puede dejarse a sí mismo sin acceso de administrador.
+  if p_user_id = app_current_user_id() and (p_role <> 'admin' or not p_is_active) then
+    raise exception 'No puedes quitarte a ti mismo los permisos de administrador.'
+      using errcode = 'check_violation';
+  end if;
+
+  update profiles set role = p_role, is_active = coalesce(p_is_active, true)
+  where id = p_user_id;
+
+  -- Las asignaciones solo se tocan para los responsables: un administrador ve
+  -- todos los establecimientos, y así conserva las suyas si algún día se le
+  -- vuelve a poner como responsable.
+  if p_role = 'manager' then
+    delete from user_establishments where user_id = p_user_id;
+    insert into user_establishments (user_id, establishment_id)
+    select p_user_id, unnest(coalesce(p_establishment_ids, '{}'))
+    on conflict do nothing;
+  end if;
 end $$;
 
 -- ------------------------------ Permisos -----------------------------------

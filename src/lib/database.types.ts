@@ -67,6 +67,7 @@ export type Movement = {
   quantity: number
   unit_price_cents: number | null
   amount_cents: number
+  expected_amount_cents: number | null
   concept: string | null
   notes: string | null
   supplier: string | null
@@ -345,6 +346,26 @@ export type Database = {
       api_void_movement: {
         Args: { p_movement_id: string; p_reason?: string | null }
         Returns: number
+      }
+      api_save_campaign: {
+        Args: {
+          p_id: string | null
+          p_name: string
+          p_year: number
+          p_purchase_price_cents: number
+          p_sale_price_cents: number
+          p_is_default?: boolean
+        }
+        Returns: string
+      }
+      api_set_user_access: {
+        Args: {
+          p_user_id: string
+          p_role: AppRole
+          p_is_active: boolean
+          p_establishment_ids?: string[]
+        }
+        Returns: undefined
       }
     }
     Enums: { app_role: AppRole; movement_type: MovementType }

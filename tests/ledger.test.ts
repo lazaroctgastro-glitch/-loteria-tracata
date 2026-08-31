@@ -108,6 +108,16 @@ describe('Libro mayor de lotería', () => {
     expect(Number(summary.withdrawn_cents)).toBe(23000)
   })
 
+  it('la retirada deja constancia de lo que se esperaba encontrar', async () => {
+    const withdrawal = await one<Record<string, string>>(
+      db,
+      `select amount_cents, expected_amount_cents from movements
+       where type = 'withdrawal' order by created_at desc limit 1`,
+    )
+    expect(Number(withdrawal.expected_amount_cents)).toBe(23000)
+    expect(Number(withdrawal.amount_cents)).toBe(23000)
+  })
+
   it('una retirada parcial mantiene viva la diferencia pendiente', async () => {
     await db.query(`select api_sale($1, $2, 5, current_date, null)`, [
       ctx.establishmentId,
@@ -119,6 +129,15 @@ describe('Libro mayor de lotería', () => {
     ])
     // Esperado 115 €, retirado 110 € -> 5 € siguen pendientes.
     expect(await scalar(db, `select pending_cents from v_establishment_summary`)).toBe(500)
+
+    // Y queda registrado el descuadre exacto de esa liquidación.
+    const withdrawal = await one<Record<string, string>>(
+      db,
+      `select amount_cents, expected_amount_cents from movements
+       where type = 'withdrawal' order by created_at desc limit 1`,
+    )
+    expect(Number(withdrawal.expected_amount_cents)).toBe(11500)
+    expect(Number(withdrawal.amount_cents)).toBe(11000)
   })
 
   it('el dinero retirado entra en la caja central', async () => {
@@ -196,6 +215,22 @@ describe('Libro mayor de lotería', () => {
     expect(await scalar(db, `select purchased_qty from v_campaign_summary`)).toBe(175)
   })
 
+  it('un movimiento no puede apuntar a un número de otra campaña', async () => {
+    const other = await one<{ id: string }>(
+      db,
+      `insert into campaigns (name, year) values ('Navidad 2028', 2028) returning id`,
+    )
+    const message = await expectError(() =>
+      db.query(
+        `select app_new_movement($1, 'sale', current_date, $2, $3, 1)`,
+        [other.id, ctx.establishmentId, ctx.numberId],
+      ),
+    )
+    expect(message).toContain('no pertenece a esa campaña')
+    // Se retira la campaña auxiliar para no alterar el resto de la prueba.
+    await db.query(`delete from campaigns where id = $1`, [other.id])
+  })
+
   it('no deja mezclar campañas en un recuento', async () => {
     const other = await one<{ id: string }>(
       db,
@@ -209,6 +244,7 @@ describe('Libro mayor de lotería', () => {
       ),
     )
     expect(message).toContain('no pertenece a la campaña')
+    await db.query(`delete from campaigns where id = $1`, [other.id])
   })
 
   it('exige que el número de lotería tenga 5 cifras', async () => {

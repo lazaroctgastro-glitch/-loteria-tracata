@@ -63,8 +63,13 @@ function describe(movement: MovementDetailed): string {
       return `Recuento de lotería en ${place}`
     case 'adjustment':
       return `${movement.concept ?? 'Ajuste'}: ${formatNumber(qty)} décimos ${number}${place ? ` en ${place}` : ' en el almacén'}`
-    case 'withdrawal':
-      return `Retirada de ${amount} de ${place}`
+    case 'withdrawal': {
+      const expected = movement.expected_amount_cents
+      const base = `Retirada de ${amount} de ${place}`
+      // Si no coincidió con lo esperado, la diferencia se ve en el histórico.
+      if (expected === null || Math.abs(movement.amount_cents) === Math.abs(expected)) return base
+      return `${base} · se esperaban ${formatMoney(Math.abs(expected))}`
+    }
     case 'fund_expense':
       return `Gasto del Fondo Fiesta: ${movement.concept} (${amount})`
   }

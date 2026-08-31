@@ -93,9 +93,20 @@ export function PurchaseForm({
                 <p className="tabular mt-1 text-3xl font-bold">{formatMoney(total)}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Si los vendes todos a {formatMoney(salePriceCents)}, generarán{' '}
-                  {formatMoney(qty * (salePriceCents - unitPrice))} para el Fondo Fiesta.
+                  {formatMoney(qty * (salePriceCents - defaultPriceCents))} para el Fondo Fiesta.
                 </p>
               </div>
+            ) : null}
+
+            {validQty && unitPrice !== defaultPriceCents ? (
+              <p className="rounded-lg bg-warning/10 p-3 text-xs font-medium text-warning">
+                Estás pagando {formatMoney(unitPrice)} por décimo en vez de los{' '}
+                {formatMoney(defaultPriceCents)} de la campaña. El reparto entre coste recuperado y
+                Fondo Fiesta se sigue calculando con los precios de la campaña, así que esta compra
+                dejará una diferencia de {formatMoney(Math.abs(qty * (unitPrice - defaultPriceCents)))}{' '}
+                {unitPrice > defaultPriceCents ? 'de más' : 'de menos'} en la caja central. Si el
+                precio ha cambiado de verdad, cámbialo en Configuración.
+              </p>
             ) : null}
 
             <div className="grid gap-4 sm:grid-cols-2">

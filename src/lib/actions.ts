@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/auth'
 import { parseMoneyToCents } from '@/lib/money'
 
 export type ActionState = { ok: boolean; message: string; fieldErrors?: Record<string, string> }
@@ -11,6 +12,17 @@ export const IDLE: ActionState = { ok: false, message: '' }
 
 function fail(message: string, fieldErrors?: Record<string, string>): ActionState {
   return { ok: false, message, fieldErrors }
+}
+
+/**
+ * La Row Level Security impide que un responsable modifique lo que no le
+ * corresponde, pero un UPDATE bloqueado por RLS simplemente afecta a 0 filas y
+ * no da error. Sin esta comprobación la aplicación respondería "guardado"
+ * sin haber guardado nada.
+ */
+async function assertAdmin(): Promise<ActionState | null> {
+  const user = await requireUser()
+  return user.isAdmin ? null : fail('No tienes permiso para hacer esto.')
 }
 
 function done(message: string): ActionState {
@@ -347,6 +359,9 @@ export async function saveEstablishmentAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const denied = await assertAdmin()
+  if (denied) return denied
+
   const { data, error } = parse(establishmentSchema, formData)
   if (error) return error
 
@@ -359,11 +374,12 @@ export async function saveEstablishmentAction(
     sort_order: data.sort_order ?? 0,
   }
 
-  const { error: dbError } = data.id
-    ? await supabase.from('establishments').update(payload).eq('id', data.id)
-    : await supabase.from('establishments').insert(payload)
+  const { data: saved, error: dbError } = data.id
+    ? await supabase.from('establishments').update(payload).eq('id', data.id).select('id')
+    : await supabase.from('establishments').insert(payload).select('id')
 
   if (dbError) return fail(humanize(dbError))
+  if (!saved || saved.length === 0) return fail('No se ha podido guardar el establecimiento.')
   return done(data.id ? 'Establecimiento actualizado.' : 'Establecimiento creado.')
 }
 
@@ -371,11 +387,18 @@ export async function deleteEstablishmentAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const denied = await assertAdmin()
+  if (denied) return denied
+
   const id = String(formData.get('id') ?? '')
   if (!id) return fail('Establecimiento no válido.')
 
   const supabase = await createClient()
-  const { error } = await supabase.from('establishments').delete().eq('id', id)
+  const { data: deleted, error } = await supabase
+    .from('establishments')
+    .delete()
+    .eq('id', id)
+    .select('id')
   if (error) {
     if (/movimientos registrados/i.test(error.message)) {
       return fail(
@@ -384,6 +407,7 @@ export async function deleteEstablishmentAction(
     }
     return fail(humanize(error))
   }
+  if (!deleted || deleted.length === 0) return fail('No se ha podido eliminar el establecimiento.')
   return done('Establecimiento eliminado.')
 }
 
@@ -411,24 +435,17 @@ export async function saveCampaignAction(
   }
 
   const supabase = await createClient()
-  // Una campaña nueva pasa siempre a ser la que se está usando.
-  const isDefault = !data.id || data.is_default === 'on' || data.is_default === 'true'
-  if (isDefault) {
-    // Solo puede haber una campaña marcada como activa.
-    await supabase.from('campaigns').update({ is_default: false }).eq('is_default', true)
-  }
-
-  const payload = {
-    name: data.name.trim(),
-    year: data.year,
-    purchase_price_cents: data.purchase_price,
-    sale_price_cents: data.sale_price,
-    is_default: isDefault,
-  }
-
-  const { error: dbError } = data.id
-    ? await supabase.from('campaigns').update(payload).eq('id', data.id)
-    : await supabase.from('campaigns').insert(payload)
+  // Todo en una sola transacción: marcar la campaña como activa y guardarla no
+  // pueden quedar a medias, o el sistema se quedaría sin campaña en uso.
+  const { error: dbError } = await supabase.rpc('api_save_campaign', {
+    p_id: data.id || null,
+    p_name: data.name.trim(),
+    p_year: data.year,
+    p_purchase_price_cents: data.purchase_price,
+    p_sale_price_cents: data.sale_price,
+    // Una campaña nueva pasa siempre a ser la que se está usando.
+    p_is_default: !data.id || data.is_default === 'on' || data.is_default === 'true',
+  })
 
   if (dbError) return fail(humanize(dbError))
   return done(data.id ? 'Campaña actualizada.' : 'Campaña creada.')
@@ -444,25 +461,15 @@ export async function updateUserAction(_prev: ActionState, formData: FormData): 
   if (!id || (role !== 'admin' && role !== 'manager')) return fail('Datos de usuario no válidos.')
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (user?.id === id && (role !== 'admin' || !isActive)) {
-    return fail('No puedes quitarte a ti mismo los permisos de administrador.')
-  }
-  const { error } = await supabase
-    .from('profiles')
-    .update({ role, is_active: isActive })
-    .eq('id', id)
+  // Rol, acceso y establecimientos se cambian en la misma transacción: si algo
+  // falla, el responsable no puede quedarse sin ningún bar asignado.
+  const { error } = await supabase.rpc('api_set_user_access', {
+    p_user_id: id,
+    p_role: role,
+    p_is_active: isActive,
+    p_establishment_ids: [...new Set(establishmentIds)],
+  })
   if (error) return fail(humanize(error))
-
-  await supabase.from('user_establishments').delete().eq('user_id', id)
-  if (role === 'manager' && establishmentIds.length > 0) {
-    const { error: assignError } = await supabase
-      .from('user_establishments')
-      .insert(establishmentIds.map((establishment_id) => ({ user_id: id, establishment_id })))
-    if (assignError) return fail(humanize(assignError))
-  }
 
   return done('Usuario actualizado.')
 }

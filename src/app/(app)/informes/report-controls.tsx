@@ -80,14 +80,20 @@ export function ReportFilters({
 }
 
 const EXPORTS = [
-  ['movimientos', 'Movimientos'],
-  ['establecimientos', 'Establecimientos'],
-  ['numeros', 'Números'],
-  ['caja', 'Caja'],
-  ['fondo', 'Fondo Fiesta'],
+  ['movimientos', 'Movimientos', false],
+  ['establecimientos', 'Establecimientos', false],
+  ['numeros', 'Números', true],
+  ['caja', 'Caja', true],
+  ['fondo', 'Fondo Fiesta', true],
 ] as const
 
-export function ExportButtons({ params }: { params: Record<string, string | undefined> }) {
+export function ExportButtons({
+  params,
+  isAdmin,
+}: {
+  params: Record<string, string | undefined>
+  isAdmin: boolean
+}) {
   const query = new URLSearchParams(
     Object.entries(params).filter(([, value]) => Boolean(value)) as [string, string][],
   )
@@ -96,7 +102,7 @@ export function ExportButtons({ params }: { params: Record<string, string | unde
     <div className="space-y-2">
       <p className="text-sm font-medium">Descargar en CSV (para Excel)</p>
       <div className="flex flex-wrap gap-2">
-        {EXPORTS.map(([value, label]) => {
+        {EXPORTS.filter(([, , adminOnly]) => isAdmin || !adminOnly).map(([value, label]) => {
           const search = new URLSearchParams(query)
           search.set('informe', value)
           return (

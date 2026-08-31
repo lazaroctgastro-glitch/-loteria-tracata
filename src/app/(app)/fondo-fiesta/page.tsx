@@ -22,6 +22,57 @@ export default async function FundPage() {
   const generated = Number(summary?.commission_cents ?? 0)
   const commissionPerTicket = campaign.sale_price_cents - campaign.purchase_price_cents
 
+  // Un responsable solo ve los movimientos de su establecimiento, así que estas
+  // cifras son SU aportación, no el fondo entero. Se rotulan como tales para no
+  // enseñarle un total que no lo es.
+  if (!user.isAdmin) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Fondo Fiesta"
+          description={`Cada décimo vendido aporta ${formatMoney(commissionPerTicket)} a la fiesta del personal.`}
+        />
+
+        <Card className="border-success/30 bg-success/5">
+          <CardContent className="p-6 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Lo que has aportado a la fiesta
+            </p>
+            <p className="tabular mt-1 text-4xl font-bold text-success">{formatMoney(generated)}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Con {formatNumber(summary?.sold_qty ?? 0)} décimos vendidos.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tu aportación</CardTitle>
+            <CardDescription>
+              El total del fondo y los gastos los lleva el administrador.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {byEstablishment.length === 0 ? (
+              <EmptyState title="Todavía no has vendido ningún décimo." />
+            ) : (
+              <ul className="divide-y">
+                {byEstablishment.map((row) => (
+                  <li key={row.establishment_id} className="flex justify-between py-2">
+                    <span className="font-medium">{row.establishment_name}</span>
+                    <span className="tabular font-semibold text-success">
+                      {formatNumber(row.sold_qty)} décimos · {formatMoney(row.commission_cents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -90,7 +141,7 @@ export default async function FundPage() {
         </CardContent>
       </Card>
 
-      {user.isAdmin ? <ExpenseForm campaignId={campaign.id} /> : null}
+      <ExpenseForm campaignId={campaign.id} />
 
       <Card>
         <CardHeader>
