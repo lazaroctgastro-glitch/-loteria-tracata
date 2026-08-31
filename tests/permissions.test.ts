@@ -101,6 +101,33 @@ describe('Permisos y Row Level Security', () => {
     expect(rows[0].establishment_name).toBe('La Huerta')
   })
 
+  it('las tarjetas del panel de inicio también quedan filtradas por RLS', async () => {
+    // v_establishment_dashboard cruza establecimientos con campañas: hay que
+    // asegurarse de que el filtrado se mantiene a través de las vistas anidadas.
+    const managerCards = await queryAs<Record<string, string>>(
+      db,
+      MANAGER_ID,
+      `select establishment_name, stock_qty from v_establishment_dashboard`,
+    )
+    expect(managerCards.map((row) => row.establishment_name)).toEqual(['La Huerta'])
+
+    const adminCards = await queryAs<Record<string, string>>(
+      db,
+      ADMIN_ID,
+      `select establishment_name from v_establishment_dashboard order by establishment_name`,
+    )
+    expect(adminCards.map((row) => row.establishment_name)).toEqual(['La Huerta', 'Raspa'])
+  })
+
+  it('un responsable no ve las ventas pendientes de otros bares', async () => {
+    const rows = await queryAs<Record<string, string>>(
+      db,
+      OTHER_MANAGER_ID,
+      `select establishment_id from v_sales_since_last_withdrawal`,
+    )
+    expect(rows.every((row) => row.establishment_id === raspa)).toBe(true)
+  })
+
   it('un responsable SÍ puede registrar ventas en su establecimiento', async () => {
     await queryAs(db, MANAGER_ID, `select api_sale('${huerta}', '${numberId}', 3)`)
     const rows = await queryAs<Record<string, string>>(

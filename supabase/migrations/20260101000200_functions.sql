@@ -9,8 +9,11 @@ create or replace function app_current_user_id() returns uuid
 language sql stable security definer set search_path = public, auth as $$
   select coalesce(
     auth.uid(),
-    -- Solo para migraciones/seed ejecutados por el propietario de la BD.
-    case when current_user in ('postgres', 'supabase_admin')
+    -- Vía exclusiva para migraciones y seed. Se comprueba `session_user` y no
+    -- `current_user` porque dentro de una función SECURITY DEFINER `current_user`
+    -- ya es el propietario, mientras que `session_user` sigue siendo quien se
+    -- conectó: así una petición de la aplicación nunca puede entrar por aquí.
+    case when session_user in ('postgres', 'supabase_admin')
          then nullif(current_setting('app.acting_user', true), '')::uuid end
   );
 $$;

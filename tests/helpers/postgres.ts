@@ -60,6 +60,26 @@ export async function resetDatabase(options: { withUsers?: boolean } = {}): Prom
   await client.end()
 }
 
+/**
+ * Conecta con el rol `authenticator`, igual que hace PostgREST: `session_user`
+ * deja de ser el propietario de la base de datos, que es la situación real de
+ * cualquier petición hecha desde la aplicación.
+ */
+export async function connectAsApiClient(jwtUserId?: string): Promise<Client> {
+  const url = new URL(CONNECTION_STRING)
+  url.username = 'authenticator'
+  url.password = ''
+  const client = new Client({ connectionString: url.toString() })
+  await client.connect()
+  await client.query(`set role authenticated`)
+  if (jwtUserId) {
+    await client.query(`select set_config('request.jwt.claims', $1, false)`, [
+      JSON.stringify({ sub: jwtUserId }),
+    ])
+  }
+  return client
+}
+
 export async function connectAsAdmin(): Promise<Client> {
   const client = new Client({ connectionString: CONNECTION_STRING })
   await client.connect()

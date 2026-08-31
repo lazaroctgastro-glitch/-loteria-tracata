@@ -5,7 +5,11 @@ create schema if not exists auth;
 do $$ begin create role anon; exception when duplicate_object then null; end $$;
 do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
 do $$ begin create role service_role; exception when duplicate_object then null; end $$;
+-- Rol con el que PostgREST se conecta realmente y desde el que cambia al rol
+-- del usuario. Permite comprobar los permisos tal y como ocurre en producción.
+do $$ begin create role authenticator login noinherit; exception when duplicate_object then null; end $$;
 grant anon, authenticated, service_role to current_user;
+grant anon, authenticated, service_role to authenticator;
 
 -- Réplica de las columnas de auth.users que usa el seed de Supabase.
 create table if not exists auth.users (
