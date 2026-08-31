@@ -1,0 +1,22 @@
+{
+  "name": "Lotería Tracatá · Gestión de Lotería de Navidad",
+  "short_name": "Lotería",
+  "description": "Control de décimos, cajas y Fondo Fiesta de la Lotería de Navidad en varios establecimientos.",
+  "lang": "es-ES",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#faf8f5",
+  "theme_color": "#b01739",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Registrar venta", "url": "/vender" },
+    { "name": "Recuento de lotería", "url": "/recuento" },
+    { "name": "Retirar dinero", "url": "/retirar" }
+  ]
+}

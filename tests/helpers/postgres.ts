@@ -21,8 +21,19 @@ export async function postgresAvailable(): Promise<boolean> {
   }
 }
 
+/** Ejecuta el seed real del proyecto (`supabase/seed.sql`). */
+export async function runProjectSeed(): Promise<void> {
+  const client = new Client({ connectionString: CONNECTION_STRING })
+  await client.connect()
+  try {
+    await client.query(readFileSync(join(ROOT, 'supabase/seed.sql'), 'utf8'))
+  } finally {
+    await client.end()
+  }
+}
+
 /** Base de datos limpia con todas las migraciones aplicadas. */
-export async function resetDatabase(): Promise<void> {
+export async function resetDatabase(options: { withUsers?: boolean } = {}): Promise<void> {
   const client = new Client({ connectionString: CONNECTION_STRING })
   await client.connect()
   await client.query(`
@@ -35,15 +46,17 @@ export async function resetDatabase(): Promise<void> {
     if (!file.endsWith('.sql')) continue
     await client.query(readFileSync(join(ROOT, 'supabase/migrations', file), 'utf8'))
   }
-  await client.query(
-    `insert into auth.users (id, email) values ($1, 'admin@tracata.local') on conflict do nothing`,
-    [ADMIN_ID],
-  )
-  await client.query(
-    `insert into profiles (id, email, full_name, role)
-     values ($1, 'admin@tracata.local', 'Administrador', 'admin') on conflict do nothing`,
-    [ADMIN_ID],
-  )
+  if (options.withUsers !== false) {
+    await client.query(
+      `insert into auth.users (id, email) values ($1, 'admin@tracata.local') on conflict do nothing`,
+      [ADMIN_ID],
+    )
+    await client.query(
+      `insert into profiles (id, email, full_name, role)
+       values ($1, 'admin@tracata.local', 'Administrador', 'admin') on conflict do nothing`,
+      [ADMIN_ID],
+    )
+  }
   await client.end()
 }
 
