@@ -50,6 +50,10 @@ facturación       = capital recuperado + Fondo Fiesta
 
 El diseño completo está explicado en **[`docs/MODELO-DE-DATOS.md`](docs/MODELO-DE-DATOS.md)**.
 
+Para la persona que va a usar la aplicación hay un manual con capturas de todas las
+pantallas: **[`docs/MANUAL-DE-USO.md`](docs/MANUAL-DE-USO.md)**, y el mismo manual listo para
+enviar o imprimir en **[`docs/Manual-de-uso-Loteria-Tracata.pdf`](docs/Manual-de-uso-Loteria-Tracata.pdf)**.
+
 Detalles importantes:
 
 - **El dinero se guarda en céntimos enteros**, nunca con decimales de coma flotante.
