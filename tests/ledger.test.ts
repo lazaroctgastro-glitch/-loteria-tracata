@@ -140,15 +140,18 @@ describe('Libro mayor de lotería', () => {
     expect(Number(withdrawal.amount_cents)).toBe(11000)
   })
 
-  it('el dinero retirado entra en la caja central', async () => {
+  it('el dinero retirado entra en la caja central, y comprar no la vacía', async () => {
     const row = await one<Record<string, string>>(
       db,
-      `select central_cash_cents, withdrawn_cents, purchases_cost_cents from v_campaign_summary`,
+      `select central_cash_cents, withdrawn_cents, purchases_cost_cents, supplier_debt_cents
+       from v_campaign_summary`,
     )
-    // 0 aportado - 2.000 € de compra + 340 € retirados
+    // La lotería se retiró sin pagar: son 2.000 € de deuda, no de caja.
     expect(Number(row.purchases_cost_cents)).toBe(200000)
+    expect(Number(row.supplier_debt_cents)).toBe(200000)
     expect(Number(row.withdrawn_cents)).toBe(34000)
-    expect(Number(row.central_cash_cents)).toBe(-200000 + 34000)
+    // La caja central solo tiene el dinero recogido de los bares.
+    expect(Number(row.central_cash_cents)).toBe(34000)
   })
 
   // --------------------------------------------------------------- recuento

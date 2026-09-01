@@ -3,6 +3,22 @@
 -- security_invoker = true  ->  las vistas respetan la RLS del usuario.
 -- =============================================================================
 
+-- Las vistas se recrean desde cero en cada instalación. `create or replace`
+-- no permite quitar ni reordenar columnas, así que una versión posterior que
+-- añada columnas haría fallar la reinstalación. Se eliminan primero, en orden
+-- inverso al de dependencias. Una vista no guarda datos: borrarla no pierde nada.
+drop view if exists v_movements_detailed cascade;
+drop view if exists v_supplier_account cascade;
+drop view if exists v_sales_since_last_withdrawal cascade;
+drop view if exists v_integrity_check cascade;
+drop view if exists v_fund_by_establishment cascade;
+drop view if exists v_campaign_summary cascade;
+drop view if exists v_establishment_dashboard cascade;
+drop view if exists v_establishment_summary cascade;
+drop view if exists v_number_summary cascade;
+drop view if exists v_stock_establishment cascade;
+drop view if exists v_stock_central cascade;
+
 -- --------------------------- STOCK CENTRAL ---------------------------------
 create or replace view v_stock_central
 with (security_invoker = true) as

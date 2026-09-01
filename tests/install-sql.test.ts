@@ -53,6 +53,7 @@ describe('supabase/instalacion-completa.sql', () => {
           'v_sales_since_last_withdrawal',
           'v_stock_central',
           'v_stock_establishment',
+          'v_supplier_account',
         ])
 
         // La seguridad queda activada en todas las tablas.

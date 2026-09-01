@@ -61,7 +61,9 @@ describe.skipIf(!available)('supabase/seed.sql', () => {
     expect(Number(row.revenue_cents)).toBe(87400)
     expect(Number(row.commission_cents)).toBe(11400)
     expect(Number(row.pending_in_establishments_cents)).toBe(37800)
-    expect(Number(row.central_cash_cents)).toBe(44600)
+    expect(Number(row.central_cash_cents)).toBe(14600)
+    expect(Number(row.supplier_debt_cents)).toBe(270000)
+    expect(Number(row.supplier_paid_cents)).toBe(30000)
   })
 
   it('incluye una retirada completa y otra parcial', async () => {

@@ -45,10 +45,18 @@ describe('Datos de demostración', () => {
     expect(EUR(Number(s.commission_cents))).toBe(114) // 38 x 3 €
     expect(EUR(Number(s.pending_in_establishments_cents))).toBe(378)
     expect(EUR(Number(s.withdrawn_cents))).toBe(496) // 276 € + 220 €
-    expect(EUR(Number(s.purchases_cost_cents))).toBe(3000) // 2.000 € + 1.000 €
-    expect(EUR(Number(s.central_cash_cents))).toBe(446) // 3000 - 3000 + 496 - 50
+    expect(EUR(Number(s.purchases_cost_cents))).toBe(3000) // 2.000 € + 1.000 € retirados
     expect(EUR(Number(s.fund_expenses_cents))).toBe(50)
     expect(EUR(Number(s.fund_balance_cents))).toBe(64) // 114 € - 50 €
+
+    // Las cuatro dimensiones, separadas:
+    // deuda = 3.000 € retirados - 300 € pagados
+    expect(EUR(Number(s.supplier_debt_cents))).toBe(2700)
+    expect(EUR(Number(s.supplier_paid_cents))).toBe(300) // 100 € al retirar + 200 € a cuenta
+    // caja = 496 € recogidos - 300 € pagados - 50 € del gasto del fondo
+    expect(EUR(Number(s.central_cash_cents))).toBe(146)
+    expect(EUR(Number(s.stock_value_cents))).toBe(2240) // 112 décimos x 20 €
+    expect(EUR(Number(s.position_cents))).toBe(64)
   })
 
   it('deja La Huerta liquidada tras la retirada completa', async () => {
@@ -121,6 +129,16 @@ describe('Datos de demostración', () => {
     expect(EUR(total)).toBe(114)
     expect(rows.rows[0].establishment_name).toBe('La Huerta')
     expect(EUR(Number(rows.rows[0].commission_cents))).toBe(36)
+  })
+
+  it('la posición de la campaña cuadra con lo generado menos lo gastado', async () => {
+    // Identidad que ata las cuatro dimensiones entre sí:
+    //   caja + pendiente + valor del stock - deuda
+    //     = aportaciones + comisiones generadas - gastos del fondo
+    const s = await one<Record<string, string>>(db, `select * from v_campaign_summary`)
+    expect(Number(s.position_cents)).toBe(
+      Number(s.injected_cents) + Number(s.commission_cents) - Number(s.fund_expenses_cents),
+    )
   })
 
   it('no presenta ningún descuadre', async () => {
