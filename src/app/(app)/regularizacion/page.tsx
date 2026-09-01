@@ -4,7 +4,12 @@ import { PageHeader } from '@/components/stat'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAdmin } from '@/lib/auth'
-import { getActiveCampaign, getEstablishments, getMovements } from '@/lib/data'
+import {
+  getActiveCampaign,
+  getCampaignSummary,
+  getEstablishmentCards,
+  getMovements,
+} from '@/lib/data'
 import { formatDate, formatMoney } from '@/lib/money'
 import { OpeningBalancesForm } from './form'
 
@@ -15,8 +20,9 @@ export default async function OpeningBalancesPage() {
   const campaign = await getActiveCampaign()
   if (!campaign) return <NoCampaign isAdmin={user.isAdmin} />
 
-  const [establishments, existing] = await Promise.all([
-    getEstablishments(),
+  const [cards, summary, existing] = await Promise.all([
+    getEstablishmentCards(campaign.id),
+    getCampaignSummary(campaign.id),
     getMovements({ campaignId: campaign.id, type: 'opening_balance', limit: 50 }),
   ])
   const active = existing.filter((m) => !m.reversed_by_movement_id && !m.reverses_movement_id)
@@ -24,18 +30,18 @@ export default async function OpeningBalancesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Saldos iniciales"
-        description="Para arrancar con la situación real si ya venías llevando las cuentas en papel."
+        title="Poner las cifras al día"
+        description="Dinos cuánto debes y cuánto tienes de verdad, y la aplicación se ajusta."
       />
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Para qué sirve esto</CardTitle>
           <CardDescription>
-            La aplicación calcula todo sumando movimientos. Si cuando empiezas ya debías dinero a la
-            administración, ya tenías efectivo guardado, o algún bar ya tenía dinero tuyo, apúntalo
-            aquí una vez y a partir de ahí las cifras serán las de verdad. Queda registrado como un
-            movimiento más, con su fecha, para no perder la trazabilidad.
+            Escribe los importes <strong>reales</strong>, los que tienes ahora mismo: no la
+            diferencia. La aplicación mira lo que le consta, calcula el ajuste que falta y lo apunta
+            en el histórico con su fecha, para que quede claro de dónde sale. Solo hay que hacerlo
+            una vez, al principio.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -43,7 +49,7 @@ export default async function OpeningBalancesPage() {
       {active.length > 0 ? (
         <Card className="border-warning/40 bg-warning/5">
           <CardContent className="space-y-3 p-5">
-            <p className="font-semibold">Los saldos iniciales ya están registrados.</p>
+            <p className="font-semibold">Las cifras ya se pusieron al día una vez.</p>
             <ul className="space-y-1 text-sm">
               {active.map((movement) => (
                 <li key={movement.id} className="flex justify-between gap-3">
@@ -66,7 +72,12 @@ export default async function OpeningBalancesPage() {
           </CardContent>
         </Card>
       ) : (
-        <OpeningBalancesForm campaignId={campaign.id} establishments={establishments} />
+        <OpeningBalancesForm
+          campaignId={campaign.id}
+          cards={cards}
+          currentDebtCents={Number(summary?.supplier_debt_cents ?? 0)}
+          currentCashCents={Number(summary?.central_cash_cents ?? 0)}
+        />
       )}
     </div>
   )

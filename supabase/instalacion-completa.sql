@@ -2458,6 +2458,112 @@ begin
   perform set_config('app.acting_user', '', false);
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- 14. Regularización: se indica el saldo REAL, no la diferencia
+--
+--     Quien ya venía trabajando (en papel o con la versión anterior) no sabe
+--     qué diferencia hay que apuntar: sabe cuánto debe y cuánto tiene. Esta
+--     función lee lo que consta ahora y registra solo el ajuste necesario para
+--     llegar al valor real, dejándolo en el histórico.
+-- ---------------------------------------------------------------------------
+create or replace function api_set_opening_balances(
+  p_campaign_id            uuid,
+  p_supplier_debt_cents    integer default null,
+  p_central_cash_cents     integer default null,
+  p_establishment_pending  jsonb   default '[]',
+  p_occurred_on            date    default current_date,
+  p_notes                  text    default null
+) returns integer
+language plpgsql security definer set search_path = public as $$
+declare
+  v_count integer := 0;
+  v_line jsonb;
+  v_establishment uuid;
+  v_target integer;
+  v_current bigint;
+  v_delta bigint;
+begin
+  perform app_assert_admin();
+
+  if exists (
+    select 1 from movements
+    where campaign_id = p_campaign_id and type::text = 'opening_balance'
+      and reverses_movement_id is null and reversed_by_movement_id is null
+  ) then
+    raise exception 'Los saldos de esta campaña ya se regularizaron una vez. Anúlalos desde Movimientos si necesitas rehacerlos.'
+      using errcode = 'check_violation';
+  end if;
+
+  -- Deuda con la administración
+  if p_supplier_debt_cents is not null then
+    if p_supplier_debt_cents < 0 then
+      raise exception 'La deuda no puede ser negativa.' using errcode = 'check_violation';
+    end if;
+    select coalesce(sum(d_supplier_debt_cents), 0) into v_current
+    from movements where campaign_id = p_campaign_id;
+    v_delta := p_supplier_debt_cents - v_current;
+    if v_delta <> 0 then
+      perform app_new_movement(
+        p_campaign_id           => p_campaign_id,
+        p_type                  => 'opening_balance',
+        p_occurred_on           => p_occurred_on,
+        p_amount_cents          => abs(v_delta)::integer,
+        p_concept               => 'Saldo real: deuda con la administración',
+        p_notes                 => p_notes,
+        p_d_supplier_debt_cents => v_delta::integer
+      );
+      v_count := v_count + 1;
+    end if;
+  end if;
+
+  -- Dinero en la caja central
+  if p_central_cash_cents is not null then
+    select coalesce(sum(d_central_cash_cents), 0) into v_current
+    from movements where campaign_id = p_campaign_id;
+    v_delta := p_central_cash_cents - v_current;
+    if v_delta <> 0 then
+      perform app_new_movement(
+        p_campaign_id          => p_campaign_id,
+        p_type                 => 'opening_balance',
+        p_occurred_on          => p_occurred_on,
+        p_amount_cents         => abs(v_delta)::integer,
+        p_concept              => 'Saldo real: dinero en la caja central',
+        p_notes                => p_notes,
+        p_d_central_cash_cents => v_delta::integer
+      );
+      v_count := v_count + 1;
+    end if;
+  end if;
+
+  -- Dinero pendiente en cada establecimiento
+  for v_line in select * from jsonb_array_elements(coalesce(p_establishment_pending, '[]'::jsonb)) loop
+    v_establishment := (v_line ->> 'establishment_id')::uuid;
+    v_target := (v_line ->> 'amount_cents')::integer;
+    continue when v_target is null;
+
+    perform app_lock_cash(v_establishment);
+    v_current := app_pending_cents(v_establishment, p_campaign_id);
+    v_delta := v_target - v_current;
+    continue when v_delta = 0;
+
+    perform app_new_movement(
+      p_campaign_id      => p_campaign_id,
+      p_type             => 'opening_balance',
+      p_occurred_on      => p_occurred_on,
+      p_establishment_id => v_establishment,
+      p_amount_cents     => abs(v_delta)::integer,
+      p_concept          => 'Saldo real: dinero pendiente en el establecimiento',
+      p_notes            => p_notes,
+      p_d_pending_cents  => v_delta::integer
+    );
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
+end $$;
+
+notify pgrst, 'reload schema';
+
 -- ===========================================================================
 -- Avisar a Supabase de que hay funciones nuevas disponibles.
 -- ===========================================================================

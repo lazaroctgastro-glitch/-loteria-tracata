@@ -68,7 +68,14 @@ Ya está el código en la rama principal.
 Debe aparecer un mensaje verde de éxito. Si sale algo en rojo, no sigas: cópialo
 y pregúntame.
 
-> Este paso se puede repetir sin miedo: ejecutarlo dos veces no rompe nada.
+> Este paso se puede repetir sin miedo: ejecutarlo dos veces no rompe nada y no
+> borra ningún dato.
+
+> **Cada vez que la aplicación se actualice con funciones nuevas, repite este
+> paso.** Si al usar alguna pantalla ves un error del tipo *«Could not find the
+> function … in the schema cache»*, significa exactamente eso: la aplicación ya
+> está actualizada pero la base de datos todavía no. Se arregla volviendo a
+> pegar el archivo.
 
 ---
 

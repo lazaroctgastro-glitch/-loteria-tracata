@@ -363,17 +363,22 @@ export async function openingBalancesAction(
   const campaignId = String(formData.get('campaign_id') ?? '')
   if (!campaignId) return fail('Campaña no válida.')
 
-  const readMoney = (field: string) => {
+  // Los importes son el saldo REAL al que hay que llegar. Un campo vacío
+  // significa "no lo toques", que no es lo mismo que ponerlo a cero.
+  const readTarget = (field: string): number | null | 'invalid' => {
     const raw = String(formData.get(field) ?? '').trim()
-    if (raw === '') return 0
+    if (raw === '') return null
     const cents = parseMoneyToCents(raw)
-    return cents === null ? null : cents
+    return cents === null ? 'invalid' : cents
   }
 
-  const debt = readMoney('supplier_debt')
-  const cash = readMoney('central_cash')
-  if (debt === null) return fail('Revisa la deuda inicial.', { supplier_debt: 'Importe no válido' })
-  if (cash === null) return fail('Revisa la caja inicial.', { central_cash: 'Importe no válido' })
+  const debt = readTarget('supplier_debt')
+  const cash = readTarget('central_cash')
+  if (debt === 'invalid') return fail('Revisa la deuda.', { supplier_debt: 'Importe no válido' })
+  if (cash === 'invalid') return fail('Revisa la caja.', { central_cash: 'Importe no válido' })
+  if (debt !== null && debt < 0) {
+    return fail('Revisa la deuda.', { supplier_debt: 'La deuda no puede ser negativa' })
+  }
 
   const pending: Array<{ establishment_id: string; amount_cents: number }> = []
   for (const [key, value] of formData.entries()) {
@@ -382,24 +387,29 @@ export async function openingBalancesAction(
     if (raw === '') continue
     const cents = parseMoneyToCents(raw)
     if (cents === null) return fail('Revisa los importes pendientes de los establecimientos.')
-    if (cents !== 0) pending.push({ establishment_id: key.slice('pending_'.length), amount_cents: cents })
+    pending.push({ establishment_id: key.slice('pending_'.length), amount_cents: cents })
   }
 
-  if (debt === 0 && cash === 0 && pending.length === 0) {
-    return fail('Indica al menos un saldo inicial.')
+  if (debt === null && cash === null && pending.length === 0) {
+    return fail('Indica al menos un importe.')
   }
 
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('api_set_opening_balances', {
     p_campaign_id: campaignId,
-    p_supplier_debt_cents: debt,
-    p_central_cash_cents: cash,
+    p_supplier_debt_cents: debt as number | null,
+    p_central_cash_cents: cash as number | null,
     p_establishment_pending: pending,
     p_occurred_on: String(formData.get('occurred_on') ?? '') || undefined,
     p_notes: String(formData.get('notes') ?? '') || null,
   })
   if (error) return fail(humanize(error))
-  return done(`Registrados ${Number(data ?? 0)} saldos iniciales.`)
+  const count = Number(data ?? 0)
+  return done(
+    count === 0
+      ? 'Las cifras ya coincidían: no ha hecho falta ningún ajuste.'
+      : `Cifras puestas al día con ${count} ${count === 1 ? 'ajuste' : 'ajustes'}.`,
+  )
 }
 
 // ------------------------------------------------------------ FONDO FIESTA

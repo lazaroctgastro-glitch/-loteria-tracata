@@ -53,8 +53,8 @@ describe('Cuenta con la administración y caja real', () => {
   })
 
   it('TEST 2 · pagar 300 € y retirar otros 300 € deja la deuda igual', async () => {
-    // Partimos de 300 € de deuda; añadimos 100 € para llegar a los 400 € del ejemplo.
-    await db.query(`select api_set_opening_balances($1, 10000, 0, '[]'::jsonb)`, [ctx.campaignId])
+    // Partimos de 300 € de deuda; la regularización fija la deuda REAL en 400 €.
+    await db.query(`select api_set_opening_balances($1, 40000, null, '[]'::jsonb)`, [ctx.campaignId])
     expect(EUR((await summary(db)).supplier_debt_cents)).toBe(400)
 
     // Hace falta dinero en la caja para poder pagar.
@@ -318,5 +318,81 @@ describe('Escenario completo', () => {
       ),
     )
     expect(message).toContain('No puedes pagar')
+  })
+})
+
+/**
+ * Regularización: el usuario indica el saldo REAL que tiene, no la diferencia.
+ * Es el caso de quien ya venía trabajando y arrastra cifras de antes.
+ */
+describe('Regularización de saldos', () => {
+  let db: Db
+  let campaignId: string
+  let barId: string
+
+  beforeAll(async () => {
+    db = await createTestDb()
+    const ctx = await setup(db)
+    campaignId = ctx.campaignId
+    barId = ctx.barId
+
+    // Situación de partida heredada: una retirada pagada al contado, como hacía
+    // la versión anterior, que dejó la caja en negativo y la deuda a cero.
+    await db.query(
+      `select api_create_purchase($1, '[{"number":"69588","quantity":10}]'::jsonb,
+        current_date, null, null, 20000)`,
+      [campaignId],
+    )
+  })
+  afterAll(async () => db?.close())
+
+  it('parte de una caja en negativo, como la que arrastra la versión anterior', async () => {
+    const s = await summary(db)
+    expect(EUR(s.central_cash_cents)).toBe(-200)
+    expect(EUR(s.supplier_debt_cents)).toBe(0)
+  })
+
+  it('fija los saldos al valor real indicado, no los suma', async () => {
+    // El usuario dice: en realidad debo 1.500 € y tengo 300 € en la caja.
+    await db.query(`select api_set_opening_balances($1, 150000, 30000, '[]'::jsonb)`, [campaignId])
+
+    const s = await summary(db)
+    expect(EUR(s.supplier_debt_cents)).toBe(1500)
+    expect(EUR(s.central_cash_cents)).toBe(300)
+  })
+
+  it('fija también el dinero pendiente de cada bar', async () => {
+    const db2 = await createTestDb()
+    const ctx = await setup(db2)
+    await db2.query(
+      `select api_set_opening_balances($1, null, null,
+        jsonb_build_array(jsonb_build_object('establishment_id', $2::uuid, 'amount_cents', 12000)))`,
+      [ctx.campaignId, ctx.barId],
+    )
+    expect(EUR((await summary(db2)).pending_in_establishments_cents)).toBe(120)
+    await db2.close()
+  })
+
+  it('deja el ajuste en el histórico, con su importe y su concepto', async () => {
+    const rows = await db.query<Record<string, string>>(
+      `select concept, amount_cents, d_central_cash_cents, d_supplier_debt_cents
+       from movements where type::text = 'opening_balance' order by concept`,
+    )
+    expect(rows.rows).toHaveLength(2)
+    // Para pasar de -200 € a 300 € hacen falta 500 € de ajuste.
+    const cash = rows.rows.find((r) => r.concept.includes('caja central'))!
+    expect(EUR(cash.d_central_cash_cents)).toBe(500)
+    expect(EUR(cash.amount_cents)).toBe(500)
+  })
+
+  it('no se puede regularizar dos veces sin anular lo anterior', async () => {
+    const message = await expectError(() =>
+      db.query(`select api_set_opening_balances($1, 100, 100, '[]'::jsonb)`, [campaignId]),
+    )
+    expect(message).toContain('ya se regularizaron')
+  })
+
+  it('el inventario y el dinero siguen cuadrando tras regularizar', async () => {
+    expect((await one<Record<string, unknown>>(db, `select * from v_integrity_check`)).balanced).toBe(true)
   })
 })

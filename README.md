@@ -97,6 +97,10 @@ O, sin instalar nada: pega en el **SQL Editor** de Supabase el archivo
 y se puede ejecutar varias veces sin efectos secundarios. Se regenera con
 `node scripts/build-install-sql.mjs`.
 
+**Repite este paso cada vez que actualices la aplicación.** Si una pantalla responde
+*«Could not find the function … in the schema cache»*, es que el código va por delante
+de la base de datos: vuelve a pegar el archivo y listo.
+
 Para probar en local con datos de ejemplo:
 
 ```bash
