@@ -5,12 +5,16 @@ import {
   Banknote,
   Boxes,
   ClipboardCheck,
+  CornerUpLeft,
+  Flag,
+  HandCoins,
   PartyPopper,
   PiggyBank,
   Receipt,
   ShoppingCart,
   Truck,
   Undo2,
+  Wallet,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,6 +43,10 @@ const ICONS: Record<MovementType, React.ElementType> = {
   adjustment: Boxes,
   withdrawal: Banknote,
   fund_expense: PartyPopper,
+  supplier_payment: HandCoins,
+  supplier_return: CornerUpLeft,
+  opening_balance: Flag,
+  cash_adjustment: Wallet,
 }
 
 /** Frase en lenguaje natural que describe el movimiento. */
@@ -50,7 +58,7 @@ function describe(movement: MovementDetailed): string {
 
   switch (movement.type) {
     case 'purchase':
-      return `Compra de ${formatNumber(qty)} décimos ${number} por ${amount}`
+      return `Retirada de ${formatNumber(qty)} décimos ${number} de la administración por ${amount}`
     case 'capital_injection':
       return `${movement.concept ?? 'Aportación'} de ${amount} a la caja central`
     case 'delivery':
@@ -72,6 +80,14 @@ function describe(movement: MovementDetailed): string {
     }
     case 'fund_expense':
       return `Gasto del Fondo Fiesta: ${movement.concept} (${amount})`
+    case 'supplier_payment':
+      return `${movement.concept ?? 'Pago a la administración'}: ${amount}`
+    case 'supplier_return':
+      return `Devolución de ${formatNumber(qty)} décimos ${number} a la administración (${amount})`
+    case 'opening_balance':
+      return `${movement.concept ?? 'Saldo inicial'}: ${amount}`
+    case 'cash_adjustment':
+      return `Corrección de la caja de ${place}: ${movement.d_pending_cents > 0 ? '+' : '−'}${amount} · ${movement.concept}`
   }
 }
 

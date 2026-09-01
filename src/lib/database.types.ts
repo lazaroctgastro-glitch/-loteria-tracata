@@ -15,6 +15,10 @@ export type MovementType =
   | 'adjustment'
   | 'withdrawal'
   | 'fund_expense'
+  | 'supplier_payment'
+  | 'supplier_return'
+  | 'opening_balance'
+  | 'cash_adjustment'
 
 export type Profile = {
   id: string
@@ -85,6 +89,7 @@ export type Movement = {
   d_capital_cents: number
   d_commission_cents: number
   d_fund_expense_cents: number
+  d_supplier_debt_cents: number
 }
 
 export type MovementDetailed = Movement & {
@@ -117,7 +122,33 @@ export type CampaignSummary = {
   injected_cents: number
   fund_expenses_cents: number
   fund_balance_cents: number
+  /** Dinero REAL disponible: solo cambia cuando el dinero entra o sale de la caja. */
   central_cash_cents: number
+  /** Lo que debemos a la administración de lotería. */
+  supplier_debt_cents: number
+  /** Dinero que ha salido de la caja hacia la administración. */
+  supplier_paid_cents: number
+  /** Valor a precio de coste de los décimos sin vender. */
+  stock_value_cents: number
+  /** Informativo: caja + pendiente + valor del stock - deuda. No es dinero disponible. */
+  position_cents: number
+}
+
+export type SupplierAccountRow = {
+  id: string
+  campaign_id: string
+  occurred_on: string
+  created_at: string
+  type: MovementType
+  concept: string
+  quantity: number
+  lottery_number: string | null
+  notes: string | null
+  created_by_email: string | null
+  is_reversed: boolean
+  charge_cents: number
+  payment_cents: number
+  balance_cents: number
 }
 
 export type EstablishmentDashboard = {
@@ -249,6 +280,7 @@ export type Database = {
       v_campaign_summary: View<CampaignSummary>
       v_fund_by_establishment: View<FundByEstablishment>
       v_sales_since_last_withdrawal: View<SalesSinceWithdrawal>
+      v_supplier_account: View<SupplierAccountRow>
       v_integrity_check: View<IntegrityCheck>
       v_movements_detailed: View<MovementDetailed>
     }
@@ -260,8 +292,49 @@ export type Database = {
           p_occurred_on?: string
           p_supplier?: string | null
           p_notes?: string | null
+          p_paid_amount_cents?: number
         }
         Returns: string
+      }
+      api_pay_supplier: {
+        Args: {
+          p_campaign_id: string
+          p_amount_cents: number
+          p_occurred_on?: string
+          p_method?: string | null
+          p_notes?: string | null
+        }
+        Returns: string
+      }
+      api_return_to_supplier: {
+        Args: {
+          p_lottery_number_id: string
+          p_quantity: number
+          p_occurred_on?: string
+          p_notes?: string | null
+        }
+        Returns: string
+      }
+      api_adjust_establishment_cash: {
+        Args: {
+          p_establishment_id: string
+          p_campaign_id: string
+          p_delta_cents: number
+          p_reason: string
+          p_occurred_on?: string
+        }
+        Returns: string
+      }
+      api_set_opening_balances: {
+        Args: {
+          p_campaign_id: string
+          p_supplier_debt_cents?: number | null
+          p_central_cash_cents?: number | null
+          p_establishment_pending?: Array<{ establishment_id: string; amount_cents: number }>
+          p_occurred_on?: string
+          p_notes?: string | null
+        }
+        Returns: number
       }
       api_capital_injection: {
         Args: {
@@ -383,4 +456,8 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   adjustment: 'Ajuste',
   withdrawal: 'Retirada de efectivo',
   fund_expense: 'Gasto del Fondo Fiesta',
+  supplier_payment: 'Pago a la administración',
+  supplier_return: 'Devolución a la administración',
+  opening_balance: 'Saldo inicial',
+  cash_adjustment: 'Corrección de caja',
 }

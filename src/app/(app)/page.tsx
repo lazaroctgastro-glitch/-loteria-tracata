@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Banknote, ClipboardCheck, Receipt, ShoppingCart, Truck } from 'lucide-react'
+import { Banknote, ClipboardCheck, HandCoins, Receipt, ShoppingCart, Truck } from 'lucide-react'
 import { EstablishmentCard } from '@/components/establishment-card'
 import { NoCampaign } from '@/components/no-campaign'
 import { Stat } from '@/components/stat'
@@ -64,6 +64,10 @@ export default async function DashboardPage() {
         <QuickAction href="/recuento" icon={<ClipboardCheck />} label="Recuento" />
         {user.isAdmin ? <QuickAction href="/retirar" icon={<Banknote />} label="Retirar dinero" /> : null}
         {user.isAdmin ? <QuickAction href="/entregar" icon={<Truck />} label="Entregar lotería" /> : null}
+        {user.isAdmin ? <QuickAction href="/comprar" icon={<ShoppingCart />} label="Recibir lotería" /> : null}
+        {user.isAdmin ? (
+          <QuickAction href="/administracion" icon={<HandCoins />} label="Pagar administración" />
+        ) : null}
       </div>
 
       {/* ------------------------------------------------ Indicadores */}
@@ -92,12 +96,12 @@ export default async function DashboardPage() {
                 />
               </>
             )}
-            <Stat label="Han vendido" value={formatMoney(summary.revenue_cents)} />
+            <Stat label="Total vendido" value={formatMoney(summary.revenue_cents)} />
             {user.isAdmin ? (
               <Stat
                 label="Capital recuperado"
                 value={formatMoney(summary.capital_recovered_cents)}
-                hint="Lo que ha costado la lotería vendida"
+                hint="Lo que costó la lotería vendida"
               />
             ) : null}
             <Stat
@@ -105,24 +109,59 @@ export default async function DashboardPage() {
               value={formatMoney(summary.commission_cents)}
               tone="success"
             />
-            <Stat
-              label="Pendiente en los bares"
-              value={formatMoney(summary.pending_in_establishments_cents)}
-              tone={Number(summary.pending_in_establishments_cents) > 0 ? 'warning' : 'success'}
-              hint="Dinero que todavía no has recogido"
-            />
-            {user.isAdmin ? (
-              <>
-                <Stat label="Dinero ya retirado" value={formatMoney(summary.withdrawn_cents)} />
+          </div>
+
+          {user.isAdmin ? (
+            <>
+              <h2 className="pt-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Dinero
+              </h2>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                <Stat
+                  label="Pendiente en los bares"
+                  value={formatMoney(summary.pending_in_establishments_cents)}
+                  tone={Number(summary.pending_in_establishments_cents) > 0 ? 'warning' : 'success'}
+                  hint="Vendido pero todavía sin recoger"
+                />
+                <Stat
+                  label="Recogido de los bares"
+                  value={formatMoney(summary.withdrawn_cents)}
+                  hint="Total histórico"
+                />
                 <Stat
                   label="Caja central disponible"
                   value={formatMoney(summary.central_cash_cents)}
-                  tone={Number(summary.central_cash_cents) < 0 ? 'destructive' : 'default'}
-                  hint="Dinero disponible para comprar más lotería"
+                  tone={Number(summary.central_cash_cents) < 0 ? 'destructive' : 'success'}
+                  hint="Dinero real que tienes ahora"
                 />
-              </>
-            ) : null}
-          </div>
+                <Stat
+                  label="Debes a la administración"
+                  value={formatMoney(summary.supplier_debt_cents)}
+                  tone={Number(summary.supplier_debt_cents) > 0 ? 'destructive' : 'success'}
+                  hint="Lotería retirada y aún no pagada"
+                />
+                <Stat
+                  label="Pagado a la administración"
+                  value={formatMoney(summary.supplier_paid_cents)}
+                  hint="Total histórico"
+                />
+                <Stat
+                  label="Valor del stock"
+                  value={formatMoney(summary.stock_value_cents)}
+                  hint={`${formatNumber(summary.total_stock_qty)} décimos a precio de coste`}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <Stat
+                label="Pendiente de recoger"
+                value={formatMoney(summary.pending_in_establishments_cents)}
+                tone={Number(summary.pending_in_establishments_cents) > 0 ? 'warning' : 'success'}
+                hint="Lo que debería haber en la caja de lotería"
+              />
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -167,9 +206,28 @@ export default async function DashboardPage() {
       </section>
 
       {summary && user.isAdmin ? (
-        <p className="text-center text-xs text-muted-foreground">
-          En total hay {decimos(summary.total_stock_qty)} sin vender.
-        </p>
+        <Card>
+          <CardContent className="space-y-1 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Posición de la campaña
+            </p>
+            <p
+              className={`tabular text-2xl font-semibold ${
+                Number(summary.position_cents) < 0 ? 'text-destructive' : 'text-success'
+              }`}
+            >
+              {formatMoney(summary.position_cents)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Caja ({formatMoney(summary.central_cash_cents)}) + pendiente en los bares (
+              {formatMoney(summary.pending_in_establishments_cents)}) + valor del stock (
+              {formatMoney(summary.stock_value_cents)}) − lo que debes (
+              {formatMoney(summary.supplier_debt_cents)}). Es un indicador informativo:{' '}
+              <strong>no es dinero disponible</strong>. En total hay{' '}
+              {decimos(summary.total_stock_qty)} sin vender.
+            </p>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   )

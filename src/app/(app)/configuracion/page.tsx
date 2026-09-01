@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import { CheckCircle2, TriangleAlert } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { DataRow, PageHeader } from '@/components/stat'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -136,6 +138,21 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Saldos iniciales</CardTitle>
+          <CardDescription>
+            Si ya venías llevando las cuentas en papel, aquí puedes registrar la deuda con la
+            administración, el dinero que ya tenías en caja y lo que cada bar te debía al empezar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline">
+            <Link href="/regularizacion">Registrar saldos iniciales</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Cómo funcionan las cuentas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
@@ -150,6 +167,10 @@ export default async function SettingsPage() {
           <p>
             El dinero se guarda internamente en céntimos enteros, así que no se pierde ni un céntimo
             por redondeos.
+          </p>
+          <p>
+            El stock, las ventas, el dinero real y la deuda son cuatro cosas distintas y se llevan
+            por separado: vender no llena la caja central, y recibir lotería no la vacía.
           </p>
         </CardContent>
       </Card>

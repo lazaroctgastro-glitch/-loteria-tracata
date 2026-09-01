@@ -125,7 +125,7 @@ export function WithdrawForm({
                     ? 'Cuadre correcto'
                     : status === 'short'
                       ? `Faltan ${formatMoney(difference!)}`
-                      : `Has recogido ${formatMoney(-difference!)} de más`}
+                      : `Son ${formatMoney(-difference!)} más de lo pendiente`}
                 </div>
                 <div className="space-y-0.5 text-sm text-foreground/80">
                   <div className="flex justify-between">
@@ -146,6 +146,12 @@ export function WithdrawForm({
                 {status === 'short' ? (
                   <p className="text-xs">
                     La diferencia no se borra: se queda como pendiente en este establecimiento.
+                  </p>
+                ) : null}
+                {status === 'over' ? (
+                  <p className="text-xs">
+                    No se puede recoger más de lo que consta pendiente. Si el descuadre es real,
+                    usa «La caja del bar no cuadra» para dejar constancia del motivo.
                   </p>
                 ) : null}
               </div>
@@ -172,7 +178,11 @@ export function WithdrawForm({
                   Retirar todo ({formatMoney(expected)})
                 </Button>
               ) : null}
-              <SubmitButton size="lg" className="sm:flex-1" disabled={!card || withdrawn === null}>
+              <SubmitButton
+                size="lg"
+                className="sm:flex-1"
+                disabled={!card || withdrawn === null || status === 'over'}
+              >
                 <Banknote /> Registrar retirada
               </SubmitButton>
             </div>

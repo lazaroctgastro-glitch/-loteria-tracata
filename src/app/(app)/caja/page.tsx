@@ -9,7 +9,14 @@ import { InjectionForm } from './injection-form'
 
 export const metadata = { title: 'Caja central' }
 
-const CASH_TYPES = ['purchase', 'withdrawal', 'capital_injection', 'fund_expense'] as const
+const CASH_TYPES = [
+  'purchase',
+  'withdrawal',
+  'capital_injection',
+  'fund_expense',
+  'supplier_payment',
+  'opening_balance',
+] as const
 
 export default async function CentralCashPage() {
   const user = await requireAdmin()
@@ -29,7 +36,7 @@ export default async function CentralCashPage() {
     <div className="space-y-6">
       <PageHeader
         title="Caja central"
-        description="El dinero del proyecto: lo que entra de los bares y lo que sale para comprar lotería."
+        description="Dinero real. Sube cuando recoges de los bares y baja cuando pagas. Vender no la aumenta."
       />
 
       <Card className="border-primary/30 bg-primary/5">
@@ -42,7 +49,8 @@ export default async function CentralCashPage() {
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
             Quedan {formatMoney(summary?.pending_in_establishments_cents ?? 0)} por recoger en los
-            establecimientos.
+            establecimientos, y debes {formatMoney(summary?.supplier_debt_cents ?? 0)} a la
+            administración.
           </p>
         </CardContent>
       </Card>
@@ -50,7 +58,7 @@ export default async function CentralCashPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Aportado por ti" value={formatMoney(summary?.injected_cents ?? 0)} />
         <Stat label="Recogido de los bares" value={formatMoney(summary?.withdrawn_cents ?? 0)} tone="success" />
-        <Stat label="Gastado en lotería" value={formatMoney(summary?.purchases_cost_cents ?? 0)} />
+        <Stat label="Pagado a la administración" value={formatMoney(summary?.supplier_paid_cents ?? 0)} />
         <Stat label="Gastos del Fondo Fiesta" value={formatMoney(summary?.fund_expenses_cents ?? 0)} />
       </div>
 
@@ -59,7 +67,7 @@ export default async function CentralCashPage() {
           <CardHeader>
             <CardTitle className="text-base">De dónde sale el dinero</CardTitle>
             <CardDescription>
-              Aunque el dinero esté junto, así se reparte contablemente.
+              Solo entra y sale dinero de verdad. Retirar lotería no toca la caja: genera deuda.
             </CardDescription>
           </CardHeader>
           <CardContent className="divide-y">
@@ -68,12 +76,13 @@ export default async function CentralCashPage() {
               <DataRow
                 label="Recogido de los establecimientos"
                 value={formatMoney(summary?.withdrawn_cents ?? 0)}
+                tone="success"
               />
             </div>
             <div className="py-2">
               <DataRow
-                label="Compras de lotería"
-                value={`− ${formatMoney(summary?.purchases_cost_cents ?? 0)}`}
+                label="Pagos a la administración"
+                value={`− ${formatMoney(summary?.supplier_paid_cents ?? 0)}`}
               />
               <DataRow
                 label="Gastos del Fondo Fiesta"

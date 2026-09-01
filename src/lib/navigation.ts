@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Banknote,
+  HandCoins,
   Boxes,
   ClipboardCheck,
   FileBarChart,
@@ -29,7 +30,8 @@ export const OPERATIONS: NavItem[] = [
   { href: '/recuento', label: 'Recuento de lotería', shortLabel: 'Recuento', icon: ClipboardCheck },
   { href: '/entregar', label: 'Entregar lotería', shortLabel: 'Entregar', icon: Truck, adminOnly: true },
   { href: '/retirar', label: 'Retirar dinero', shortLabel: 'Retirar', icon: Banknote, adminOnly: true },
-  { href: '/comprar', label: 'Comprar lotería', shortLabel: 'Comprar', icon: ShoppingCart, adminOnly: true },
+  { href: '/comprar', label: 'Recibir lotería', shortLabel: 'Recibir', icon: ShoppingCart, adminOnly: true },
+  { href: '/administracion', label: 'Pagar administración', shortLabel: 'Pagar', icon: HandCoins, adminOnly: true },
 ]
 
 export const SECTIONS: NavItem[] = [
@@ -37,6 +39,7 @@ export const SECTIONS: NavItem[] = [
   { href: '/establecimientos', label: 'Establecimientos', icon: Store },
   { href: '/inventario', label: 'Inventario', icon: Boxes },
   { href: '/caja', label: 'Caja central', icon: Wallet, adminOnly: true },
+  { href: '/administracion', label: 'Administración', icon: HandCoins, adminOnly: true },
   { href: '/fondo-fiesta', label: 'Fondo Fiesta', icon: PartyPopper },
   { href: '/movimientos', label: 'Movimientos', icon: Gift },
   { href: '/informes', label: 'Informes', icon: FileBarChart },

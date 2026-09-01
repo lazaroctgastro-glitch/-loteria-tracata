@@ -2,6 +2,7 @@ import { NoCampaign } from '@/components/no-campaign'
 import { PageHeader } from '@/components/stat'
 import { requireAdmin } from '@/lib/auth'
 import { getActiveCampaign, getEstablishmentCards, getSalesSinceLastWithdrawal } from '@/lib/data'
+import { AdjustCashDialog } from './adjust-cash'
 import { WithdrawForm } from './withdraw-form'
 
 export const metadata = { title: 'Retirar dinero' }
@@ -36,6 +37,12 @@ export default async function WithdrawPage({
         campaignId={campaign.id}
         cards={cards.filter((card) => card.is_active || card.pending_cents !== 0)}
         salesSinceWithdrawal={salesSinceWithdrawal}
+        defaultEstablishmentId={params.establecimiento}
+      />
+
+      <AdjustCashDialog
+        campaignId={campaign.id}
+        cards={cards.filter((card) => card.is_active || card.pending_cents !== 0)}
         defaultEstablishmentId={params.establecimiento}
       />
     </div>

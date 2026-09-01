@@ -6,7 +6,7 @@ import { getActiveCampaign, getCampaignSummary, getMovements } from '@/lib/data'
 import { formatDate, formatMoney, formatNumber } from '@/lib/money'
 import { PurchaseForm } from './purchase-form'
 
-export const metadata = { title: 'Comprar lotería' }
+export const metadata = { title: 'Recibir lotería' }
 
 export default async function PurchasePage() {
   const user = await requireAdmin()
@@ -21,21 +21,26 @@ export default async function PurchasePage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Comprar lotería"
-        description="Registra los décimos que compras en la administración."
+        title="Recibir lotería"
+        description="Registra los décimos que te llevas de la administración, los pagues ahora o no."
       />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Stat
-          label="Caja central disponible"
-          value={formatMoney(summary?.central_cash_cents ?? 0)}
-          tone={Number(summary?.central_cash_cents ?? 0) < 0 ? 'destructive' : 'default'}
-          hint="Dinero con el que puedes comprar"
+          label="Décimos recibidos"
+          value={formatNumber(summary?.purchased_qty ?? 0)}
+          hint={`${formatMoney(summary?.purchases_cost_cents ?? 0)} en lotería`}
         />
         <Stat
-          label="Décimos comprados"
-          value={formatNumber(summary?.purchased_qty ?? 0)}
-          hint={`${formatMoney(summary?.purchases_cost_cents ?? 0)} invertidos`}
+          label="Debes a la administración"
+          value={formatMoney(summary?.supplier_debt_cents ?? 0)}
+          tone={Number(summary?.supplier_debt_cents ?? 0) > 0 ? 'destructive' : 'success'}
+        />
+        <Stat
+          label="Tienes en caja"
+          value={formatMoney(summary?.central_cash_cents ?? 0)}
+          tone={Number(summary?.central_cash_cents ?? 0) < 0 ? 'destructive' : 'default'}
+          hint="Dinero real disponible"
         />
       </div>
 
@@ -43,15 +48,16 @@ export default async function PurchasePage() {
         campaignId={campaign.id}
         defaultPriceCents={campaign.purchase_price_cents}
         salePriceCents={campaign.sale_price_cents}
+        debtCents={Number(summary?.supplier_debt_cents ?? 0)}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Compras anteriores</CardTitle>
+          <CardTitle className="text-base">Retiradas anteriores</CardTitle>
         </CardHeader>
         <CardContent>
           {purchases.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todavía no has comprado lotería.</p>
+            <p className="text-sm text-muted-foreground">Todavía no has recibido lotería.</p>
           ) : (
             <ul className="divide-y">
               {purchases.map((purchase) => (

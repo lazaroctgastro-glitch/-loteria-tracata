@@ -31,6 +31,7 @@ o restar, **cada fila guarda explícitamente el efecto que produce**:
 | `d_capital_cents`        | Variación del capital recuperado (parte del coste)             |
 | `d_commission_cents`     | Variación de la comisión generada (fondo fiesta)               |
 | `d_fund_expense_cents`   | Variación de los gastos cargados al fondo fiesta               |
+| `d_supplier_debt_cents`  | Variación de la deuda con la administración de lotería         |
 
 Ventajas de este diseño:
 
@@ -56,6 +57,14 @@ DÉCIMOS COMPRADOS = STOCK CENTRAL + STOCK EN BARES + VENDIDOS + BAJAS
 FACTURACIÓN       = CAPITAL RECUPERADO + COMISIONES
 ```
 
+Y de estas dos se deriva una tercera, que ata las cuatro dimensiones entre sí y
+sirve como comprobación global:
+
+```
+CAJA + PENDIENTE EN BARES + VALOR DEL STOCK − DEUDA
+    = APORTACIONES + COMISIONES − GASTOS DEL FONDO
+```
+
 La pantalla de Configuración muestra un panel de **Control de integridad** que
 ejecuta estas comprobaciones sobre los datos reales (vista `v_integrity_check`).
 
@@ -65,8 +74,12 @@ Con `n` = décimos, `PC` = precio de compra, `PV` = precio de venta, `C = PV - P
 
 | Tipo               | Efectos                                                                                 |
 | ------------------ | --------------------------------------------------------------------------------------- |
-| `purchase`         | `purchased +n`, `central +n`, `central_cash -(n·PC)`                                      |
+| `purchase`         | `purchased +n`, `central +n`, `supplier_debt +(n·PC)` — el stock entra esté pagado o no   |
+| `supplier_payment` | `central_cash -importe`, `supplier_debt -importe`                                          |
+| `supplier_return`  | `purchased -n`, `central -n`, `supplier_debt -(n·PC)`                                      |
 | `capital_injection`| `central_cash +importe` (aportación de dinero propio al proyecto)                          |
+| `opening_balance`  | Saldos de partida: deuda, caja central y pendiente de cada bar                             |
+| `cash_adjustment`  | `pending ±importe` con motivo obligatorio                                                  |
 | `delivery`         | `central -n`, `establishment +n`                                                          |
 | `return`           | `central +n`, `establishment -n`                                                          |
 | `sale`             | `establishment -n`, `sold +n`, `revenue +n·PV`, `capital +n·PC`, `commission +n·C`, `pending +n·PV` |
@@ -98,7 +111,32 @@ Estos importes se derivan **siempre** de los precios de la campaña
 congelan en el movimiento en el momento de la venta (`unit_price_cents`), de modo
 que cambiar los precios de una campaña futura no altera el histórico.
 
-## 4. Los dos niveles de caja
+## 4. Las cuatro dimensiones
+
+El principio que ordena todo el modelo:
+
+```
+STOCK  ≠  VENTAS  ≠  DINERO FÍSICO  ≠  DEUDA
+```
+
+Son cuatro cosas distintas y se llevan por separado:
+
+- **Vender no llena la caja central.** El dinero sigue en el bar hasta que se recoge.
+- **Recibir lotería no vacía la caja central.** Genera deuda con la administración; la
+  caja solo baja cuando se paga.
+
+### 4.0. Deuda con la administración
+
+```
+DEUDA = Σ d_supplier_debt_cents
+      = valor de la lotería retirada − pagos − devoluciones valoradas
+```
+
+Es una cuenta corriente: los pagos van contra el saldo global, no contra un lote
+concreto. La vista `v_supplier_account` la muestra con su cargo, su pago y su saldo
+acumulado.
+
+## 4 bis. Los dos niveles de caja
 
 ### 4.1. Caja de lotería del establecimiento (`pending_cents`)
 
@@ -115,10 +153,16 @@ fuerza ni se borra una diferencia.
 
 ### 4.2. Caja central (`central_cash_cents`)
 
+La caja central es **dinero real**: solo cambia cuando el dinero entra o sale
+físicamente.
+
 ```
 CAJA CENTRAL = Σ d_central_cash_cents
-             = aportaciones + retiradas de bares - compras - gastos del fondo
+             = aportaciones + dinero recogido de los bares
+               − pagos a la administración − gastos del fondo
 ```
+
+Retirar lotería **no** toca la caja central: genera deuda.
 
 ### 4.3. Fondo Fiesta
 
@@ -157,6 +201,7 @@ líneas (una compra de 3 números, un recuento) comparten un `group_id`.
 | `v_number_summary`          | Informe por número de lotería                                |
 | `v_campaign_summary`        | Indicadores del dashboard                                    |
 | `v_fund_summary`            | Fondo fiesta: generado, gastado, saldo, % por bar             |
+| `v_supplier_account`        | Cuenta corriente con la administración                        |
 | `v_integrity_check`         | Control automático de descuadres                             |
 
 Todas las vistas usan `security_invoker = true`, por lo que **respetan la RLS del
@@ -191,3 +236,5 @@ generar stock negativo.
 | Movimiento registrado por error                   | `Anular movimiento` → movimiento inverso, nunca borrado              |
 | Retirada apuntada por error                       | Al anularla el dinero vuelve a contar como pendiente de recoger      |
 | Décimo perdido / roto                             | `adjustment` con baja explícita y motivo obligatorio                 |
+| Se recoge de un bar más de lo pendiente           | Se rechaza; hay que usar `cash_adjustment`, que exige motivo          |
+| Se venía trabajando en papel                      | `opening_balance`: deuda, caja y pendiente de cada bar de partida     |

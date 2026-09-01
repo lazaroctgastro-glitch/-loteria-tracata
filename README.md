@@ -18,6 +18,7 @@ tiene su propia «Caja de Lotería».
 | Cuántos tiene y ha vendido cada establecimiento  | **Inicio** (tarjeta de cada bar)            |
 | Cuánto dinero debería haber en cada caja         | «CAJA PENDIENTE» de cada tarjeta            |
 | Cuánto retiro y cuánto queda pendiente           | **Retirar dinero**                          |
+| Cuánto debo a la administración y cuánto he pagado | **Administración** (cuenta corriente)     |
 | Cuánto capital recupero y cuánta comisión genero | **Caja central**                            |
 | Cuánto se lleva acumulado para la fiesta         | **Fondo Fiesta**                            |
 | Qué pasó, cuándo y quién lo hizo                 | **Movimientos** (histórico completo)        |
@@ -36,8 +37,14 @@ Hay dos niveles de caja, claramente separados:
 1. **Caja de lotería del establecimiento.** Cada venta suma 23 € a lo que ese bar debe tener
    guardado. Cuando pasas a recoger el dinero, esa caja baja por lo que realmente te llevas.
    Si retiras menos de lo esperado, **la diferencia sigue viva**: nunca se cuadra a la fuerza.
-2. **Caja central.** El dinero del proyecto: entra lo que recoges de los bares (y lo que
-   aportas tú), y sale lo que gastas comprando más lotería o en la fiesta.
+2. **Caja central.** Dinero real: entra lo que recoges de los bares (y lo que aportas tú), y
+   sale lo que pagas a la administración o gastas en la fiesta.
+3. **Cuenta con la administración.** Los décimos se retiran a crédito: entran en stock aunque
+   no estén pagados, y lo que no pagas queda como deuda. Los pagos van contra el saldo global,
+   como una cuenta corriente.
+
+Cuatro cosas distintas que la aplicación **nunca mezcla**: el stock, lo vendido, el dinero
+real y lo que debes. Vender no llena la caja central, y recibir lotería no la vacía.
 
 Todo esto se apoya en un principio: **no se guarda ningún saldo**. Existe un único libro de
 movimientos al que solo se añade, y todas las cifras se calculan sumándolo. Dos reglas que la

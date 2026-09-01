@@ -172,30 +172,58 @@ export default async function ReportsPage({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Informe de caja</CardTitle>
+            <CardDescription>
+              El dinero real y lo que está fuera de la caja, sin mezclarlos.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-x-8 sm:grid-cols-2">
             <div>
+              <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Dinero real
+              </p>
               <DataRow label="Aportaciones" value={formatMoney(summary?.injected_cents ?? 0)} />
-              <DataRow label="Recogido de los bares" value={formatMoney(summary?.withdrawn_cents ?? 0)} />
               <DataRow
-                label="Compras de lotería"
-                value={`− ${formatMoney(summary?.purchases_cost_cents ?? 0)}`}
+                label="Recogido de los bares"
+                value={formatMoney(summary?.withdrawn_cents ?? 0)}
+                tone="success"
+              />
+              <DataRow
+                label="Pagos a la administración"
+                value={`− ${formatMoney(summary?.supplier_paid_cents ?? 0)}`}
               />
               <DataRow
                 label="Gastos del fondo"
                 value={`− ${formatMoney(summary?.fund_expenses_cents ?? 0)}`}
               />
-            </div>
-            <div>
               <DataRow
                 label="Caja central disponible"
                 value={formatMoney(summary?.central_cash_cents ?? 0)}
                 strong
               />
+            </div>
+            <div>
+              <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Lo que está fuera de la caja
+              </p>
               <DataRow
                 label="Pendiente en los bares"
                 value={formatMoney(summary?.pending_in_establishments_cents ?? 0)}
                 tone="warning"
+              />
+              <DataRow
+                label="Valor del stock a coste"
+                value={formatMoney(summary?.stock_value_cents ?? 0)}
+              />
+              <DataRow
+                label="Deuda con la administración"
+                value={`− ${formatMoney(summary?.supplier_debt_cents ?? 0)}`}
+                tone="destructive"
+              />
+              <DataRow
+                label="Posición de la campaña"
+                value={formatMoney(summary?.position_cents ?? 0)}
+                strong
+                tone={Number(summary?.position_cents ?? 0) < 0 ? 'destructive' : 'success'}
               />
             </div>
           </CardContent>

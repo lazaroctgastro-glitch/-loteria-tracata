@@ -7,12 +7,13 @@ import {
   getFundByEstablishment,
   getMovements,
   getNumberSummary,
+  getSupplierAccount,
 } from '@/lib/data'
 import { MOVEMENT_LABELS, type MovementType } from '@/lib/database.types'
 import { centsToCsv, csvResponse, toCsv } from '@/lib/csv'
 
 /** Informes que contienen cifras globales del proyecto. */
-const ADMIN_ONLY_REPORTS = ['caja', 'fondo', 'numeros']
+const ADMIN_ONLY_REPORTS = ['caja', 'fondo', 'numeros', 'administracion']
 
 /** Exportación de informes a CSV. Respeta los permisos del usuario (RLS). */
 export async function GET(request: NextRequest) {
@@ -101,18 +102,22 @@ export async function GET(request: NextRequest) {
       const summary = await getCampaignSummary(campaign.id)
       const rows: Array<[string, string]> = summary
         ? [
-            ['Décimos comprados', String(summary.purchased_qty)],
+            ['Décimos recibidos de la administración', String(summary.purchased_qty)],
             ['Décimos vendidos', String(summary.sold_qty)],
             ['Décimos en stock', String(summary.total_stock_qty)],
             ['Facturación (€)', centsToCsv(summary.revenue_cents)],
             ['Capital recuperado (€)', centsToCsv(summary.capital_recovered_cents)],
             ['Fondo Fiesta generado (€)', centsToCsv(summary.commission_cents)],
             ['Pendiente en establecimientos (€)', centsToCsv(summary.pending_in_establishments_cents)],
-            ['Dinero retirado (€)', centsToCsv(summary.withdrawn_cents)],
+            ['Dinero recogido de los bares (€)', centsToCsv(summary.withdrawn_cents)],
             ['Aportaciones (€)', centsToCsv(summary.injected_cents)],
-            ['Compras de lotería (€)', centsToCsv(summary.purchases_cost_cents)],
+            ['Lotería retirada, a coste (€)', centsToCsv(summary.purchases_cost_cents)],
+            ['Pagado a la administración (€)', centsToCsv(summary.supplier_paid_cents)],
+            ['Deuda con la administración (€)', centsToCsv(summary.supplier_debt_cents)],
             ['Gastos del Fondo Fiesta (€)', centsToCsv(summary.fund_expenses_cents)],
             ['Caja central disponible (€)', centsToCsv(summary.central_cash_cents)],
+            ['Valor del stock a coste (€)', centsToCsv(summary.stock_value_cents)],
+            ['Posición de la campaña (€)', centsToCsv(summary.position_cents)],
           ]
         : []
       return csvResponse(`caja-${stamp}.csv`, toCsv(['Concepto', 'Valor'], rows))
@@ -134,6 +139,29 @@ export async function GET(request: NextRequest) {
             centsToCsv(row.commission_cents),
             total > 0 ? ((Number(row.commission_cents) / total) * 100).toFixed(1) : '0,0',
           ]),
+        ),
+      )
+    }
+
+    case 'administracion': {
+      const account = await getSupplierAccount(campaign.id)
+      return csvResponse(
+        `administracion-${stamp}.csv`,
+        toCsv(
+          ['Fecha', 'Concepto', 'Número', 'Décimos', 'Retirada (€)', 'Pago (€)', 'Saldo (€)', 'Anulado'],
+          account
+            .slice()
+            .reverse()
+            .map((row) => [
+              row.occurred_on,
+              row.concept,
+              row.lottery_number ?? '',
+              row.quantity || '',
+              centsToCsv(row.charge_cents),
+              centsToCsv(row.payment_cents),
+              centsToCsv(row.balance_cents),
+              row.is_reversed ? 'Sí' : 'No',
+            ]),
         ),
       )
     }
@@ -164,6 +192,7 @@ export async function GET(request: NextRequest) {
             'Fondo Fiesta (€)',
             'Caja del bar (€)',
             'Caja central (€)',
+            'Deuda administración (€)',
             'Concepto',
             'Observaciones',
             'Anulado',
@@ -181,6 +210,7 @@ export async function GET(request: NextRequest) {
             centsToCsv(movement.d_commission_cents),
             centsToCsv(movement.d_pending_cents),
             centsToCsv(movement.d_central_cash_cents),
+            centsToCsv(movement.d_supplier_debt_cents),
             movement.concept ?? '',
             movement.notes ?? '',
             movement.reversed_by_movement_id ? 'Sí' : 'No',

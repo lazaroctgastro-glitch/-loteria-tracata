@@ -100,7 +100,7 @@ export default async function EstablishmentDetailPage({
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Décimos entregados" value={formatNumber(card?.delivered_qty ?? 0)} size="sm" />
+        <Stat label="Décimos recibidos" value={formatNumber(card?.delivered_qty ?? 0)} size="sm" />
         <Stat label="Le quedan" value={formatNumber(card?.stock_qty ?? 0)} size="sm" tone="primary" />
         <Stat label="Ha vendido" value={formatNumber(card?.sold_qty ?? 0)} size="sm" />
         <Stat
@@ -142,21 +142,28 @@ export default async function EstablishmentDetailPage({
             <CardTitle className="text-base">Cuentas del establecimiento</CardTitle>
           </CardHeader>
           <CardContent>
-            <DataRow label="Ha vendido" value={formatMoney(card?.revenue_cents ?? 0)} strong />
-            <DataRow label="Coste de lo vendido" value={formatMoney(card?.capital_cents ?? 0)} />
+            <DataRow label="Importe vendido" value={formatMoney(card?.revenue_cents ?? 0)} strong />
             <DataRow
-              label="Para el Fondo Fiesta"
+              label="Capital recuperado generado"
+              value={formatMoney(card?.capital_cents ?? 0)}
+            />
+            <DataRow
+              label="Comisión generada"
               value={formatMoney(card?.commission_cents ?? 0)}
               tone="success"
             />
             <div className="mt-3 border-t pt-3">
-              <DataRow label="Ya recogido" value={formatMoney(card?.withdrawn_cents ?? 0)} />
+              <DataRow label="Dinero retirado" value={formatMoney(card?.withdrawn_cents ?? 0)} />
               <DataRow
                 label="Pendiente de recoger"
                 value={formatMoney(pending)}
                 strong
                 tone={pending > 0 ? 'warning' : pending < 0 ? 'destructive' : 'success'}
               />
+              <p className="pt-1 text-xs text-muted-foreground">
+                Última retirada:{' '}
+                {card?.last_withdrawal_on ? formatDate(card.last_withdrawal_on) : 'todavía ninguna'}
+              </p>
             </div>
             {(card?.returned_qty ?? 0) > 0 ? (
               <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">

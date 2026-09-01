@@ -84,6 +84,7 @@ const EXPORTS = [
   ['establecimientos', 'Establecimientos', false],
   ['numeros', 'Números', true],
   ['caja', 'Caja', true],
+  ['administracion', 'Administración', true],
   ['fondo', 'Fondo Fiesta', true],
 ] as const
 

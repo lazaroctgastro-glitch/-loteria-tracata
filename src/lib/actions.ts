@@ -87,6 +87,7 @@ const purchaseSchema = z.object({
   number: z.string().regex(/^\d{5}$/, 'El número debe tener 5 cifras'),
   quantity,
   unit_price: z.string().optional(),
+  paid_amount: z.string().optional(),
   occurred_on: isoDate,
   supplier: z.string().optional(),
   notes: z.string().optional(),
@@ -101,6 +102,12 @@ export async function purchaseAction(_prev: ActionState, formData: FormData): Pr
     return fail('Revisa los datos del formulario.', { unit_price: 'Precio de compra no válido' })
   }
 
+  // Lo que se paga en el momento; el resto queda a deber.
+  const paid = data.paid_amount ? parseMoneyToCents(data.paid_amount) : 0
+  if (data.paid_amount && (paid === null || paid < 0)) {
+    return fail('Revisa los datos del formulario.', { paid_amount: 'Importe pagado no válido' })
+  }
+
   const supabase = await createClient()
   const { error: rpcError } = await supabase.rpc('api_create_purchase', {
     p_campaign_id: data.campaign_id,
@@ -110,9 +117,10 @@ export async function purchaseAction(_prev: ActionState, formData: FormData): Pr
     p_occurred_on: data.occurred_on,
     p_supplier: data.supplier || null,
     p_notes: data.notes || null,
+    p_paid_amount_cents: paid ?? 0,
   })
   if (rpcError) return fail(humanize(rpcError))
-  return done(`Compra registrada: ${data.quantity} décimos del número ${data.number}.`)
+  return done(`Registrados ${data.quantity} décimos del número ${data.number}.`)
 }
 
 // ------------------------------------------------- APORTAR A CAJA CENTRAL
@@ -262,6 +270,136 @@ export async function withdrawAction(_prev: ActionState, formData: FormData): Pr
   })
   if (rpcError) return fail(humanize(rpcError))
   return done('Retirada registrada.')
+}
+
+// -------------------------------------------- PAGAR A LA ADMINISTRACIÓN
+const supplierPaymentSchema = z.object({
+  campaign_id: uuid,
+  amount: money('el pago'),
+  method: z.string().optional(),
+  occurred_on: isoDate,
+  notes: z.string().optional(),
+})
+
+export async function paySupplierAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { data, error } = parse(supplierPaymentSchema, formData)
+  if (error) return error
+
+  const supabase = await createClient()
+  const { error: rpcError } = await supabase.rpc('api_pay_supplier', {
+    p_campaign_id: data.campaign_id,
+    p_amount_cents: data.amount,
+    p_occurred_on: data.occurred_on,
+    p_method: data.method || null,
+    p_notes: data.notes || null,
+  })
+  if (rpcError) return fail(humanize(rpcError))
+  return done('Pago registrado.')
+}
+
+// ------------------------------------- DEVOLVER A LA ADMINISTRACIÓN
+const supplierReturnSchema = z.object({
+  lottery_number_id: uuid,
+  quantity,
+  occurred_on: isoDate,
+  notes: z.string().optional(),
+})
+
+export async function returnToSupplierAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { data, error } = parse(supplierReturnSchema, formData)
+  if (error) return error
+
+  const supabase = await createClient()
+  const { error: rpcError } = await supabase.rpc('api_return_to_supplier', {
+    p_lottery_number_id: data.lottery_number_id,
+    p_quantity: data.quantity,
+    p_occurred_on: data.occurred_on,
+    p_notes: data.notes || null,
+  })
+  if (rpcError) return fail(humanize(rpcError))
+  return done(`Devueltos ${data.quantity} décimos a la administración.`)
+}
+
+// ------------------------------------- CORREGIR LA CAJA DE UN BAR
+const cashAdjustSchema = z.object({
+  establishment_id: uuid,
+  campaign_id: uuid,
+  direction: z.enum(['add', 'subtract']),
+  amount: money('la corrección'),
+  reason: z.string().min(2, 'Indica el motivo'),
+  occurred_on: isoDate,
+})
+
+export async function adjustEstablishmentCashAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { data, error } = parse(cashAdjustSchema, formData)
+  if (error) return error
+
+  const supabase = await createClient()
+  const { error: rpcError } = await supabase.rpc('api_adjust_establishment_cash', {
+    p_establishment_id: data.establishment_id,
+    p_campaign_id: data.campaign_id,
+    p_delta_cents: data.direction === 'add' ? data.amount : -data.amount,
+    p_reason: data.reason,
+    p_occurred_on: data.occurred_on,
+  })
+  if (rpcError) return fail(humanize(rpcError))
+  return done('Corrección registrada en el histórico.')
+}
+
+// ------------------------------------------------- SALDOS INICIALES
+export async function openingBalancesAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const campaignId = String(formData.get('campaign_id') ?? '')
+  if (!campaignId) return fail('Campaña no válida.')
+
+  const readMoney = (field: string) => {
+    const raw = String(formData.get(field) ?? '').trim()
+    if (raw === '') return 0
+    const cents = parseMoneyToCents(raw)
+    return cents === null ? null : cents
+  }
+
+  const debt = readMoney('supplier_debt')
+  const cash = readMoney('central_cash')
+  if (debt === null) return fail('Revisa la deuda inicial.', { supplier_debt: 'Importe no válido' })
+  if (cash === null) return fail('Revisa la caja inicial.', { central_cash: 'Importe no válido' })
+
+  const pending: Array<{ establishment_id: string; amount_cents: number }> = []
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith('pending_')) continue
+    const raw = String(value).trim()
+    if (raw === '') continue
+    const cents = parseMoneyToCents(raw)
+    if (cents === null) return fail('Revisa los importes pendientes de los establecimientos.')
+    if (cents !== 0) pending.push({ establishment_id: key.slice('pending_'.length), amount_cents: cents })
+  }
+
+  if (debt === 0 && cash === 0 && pending.length === 0) {
+    return fail('Indica al menos un saldo inicial.')
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('api_set_opening_balances', {
+    p_campaign_id: campaignId,
+    p_supplier_debt_cents: debt,
+    p_central_cash_cents: cash,
+    p_establishment_pending: pending,
+    p_occurred_on: String(formData.get('occurred_on') ?? '') || undefined,
+    p_notes: String(formData.get('notes') ?? '') || null,
+  })
+  if (error) return fail(humanize(error))
+  return done(`Registrados ${Number(data ?? 0)} saldos iniciales.`)
 }
 
 // ------------------------------------------------------------ FONDO FIESTA

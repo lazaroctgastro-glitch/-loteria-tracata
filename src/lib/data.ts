@@ -14,6 +14,7 @@ import type {
   NumberSummary,
   Profile,
   SalesSinceWithdrawal,
+  SupplierAccountRow,
   StockCentralRow,
   StockEstablishmentRow,
 } from '@/lib/database.types'
@@ -166,6 +167,19 @@ export const getSalesSinceLastWithdrawal = cache(
     return data ?? []
   },
 )
+
+/** Cuenta corriente con la administración: cargos, pagos y saldo acumulado. */
+export const getSupplierAccount = cache(async (campaignId: string): Promise<SupplierAccountRow[]> => {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('v_supplier_account')
+    .select('*')
+    .eq('campaign_id', campaignId)
+    .order('occurred_on', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(300)
+  return data ?? []
+})
 
 export type MovementFilters = {
   campaignId?: string
