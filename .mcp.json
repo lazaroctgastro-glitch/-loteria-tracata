@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "etoro": {
+      "type": "http",
+      "url": "https://agent.etoro.com/mcp/trading"
+    }
+  }
+}
